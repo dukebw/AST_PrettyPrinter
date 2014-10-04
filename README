@@ -1,3 +1,9 @@
 This is a first incarnation of an AST that is ultimately supposed to represent a single function with return type int within a class. 
 
 The function will be an if-else construct in the cases of A1.java and A2.java, and a for loop representing a recurrence relation in the case of A3.java
+
+Many of the comments are as much for my own clarification as for other potential readers of my program.
+
+At this point I realize that by having get() functions that return pointers to my private data members I ruin the encapsulation of the program. In future versions I hope to devise a way to not return pointers to the data members, or to find some way to make the program safer.
+
+Currently indents are implemented with tabs. It may be preferable to switch this with two spaces (which can be done by changing one line in JavaPrinter::printIndents()).
