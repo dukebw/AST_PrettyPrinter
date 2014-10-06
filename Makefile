@@ -6,13 +6,14 @@ CXX = g++
 SOURCES = test_print_AST.cpp AST.cpp
 OBJS = ${SOURCES:.cpp=.o}
 TARGETS = test_print_AST
+LINK = -lboost_filesystem -lboost_system
 
 $(TARGETS) : $(OBJS)
-	$(CXX) -o $(TARGETS) $(OBJS)
+	$(CXX) -o $(TARGETS) $(OBJS) $(LINK)
 
 # A rule to build .o file out of a .cpp file
 %.o: %.cpp AST.h
-	$(CXX) $(CXXFLAGS) -o $@ -c $<
+	$(CXX) $(CXXFLAGS) -o $@ -c $< 
 
 # A rule to clean all the intermediates and targets
 clean:

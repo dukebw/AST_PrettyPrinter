@@ -1,10 +1,31 @@
 // To do: go through and replace all bare pointers with std::shared_ptr from <memory>
+#include <boost/filesystem.hpp>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <exception>
+#include <algorithm>
+#include <random>
 
-class BadSize{};  // For throwing range errors from getter functions.
+class BadPath{}; // For throwing file-existence errors
+class BadSize{}; // For throwing range errors
+class BadComparison{}; // for ResultFinder coming across the wrong operator
+
+//------------------------------------------------------------------------------------
+
+// This random number generator will produce a DIFFERENT sequence of random numbers
+// each time the program is run. If the SAME sequence of random numbers is desired
+// for testing purposes use a std::default_random_engine member re and return dist(re);
+class Rand_int {
+public:
+   Rand_int(int low, int high) :dist{low, high}, gen{rd()} {}
+   int operator()() { return dist(gen); }
+private:
+   std::uniform_int_distribution<> dist;
+   std::random_device rd;
+   std::mt19937 gen;
+};
 
 //------------------------------------------------------------------------------------
 
@@ -40,9 +61,11 @@ struct Parameter {
 // Abstract superclass of all ASTNode types
 class ASTNode;
 
+struct TesterBoilerplate;
 struct PackageDeclaration;
 struct ClassDeclaration;
 struct MethodDeclaration;
+struct AssertStatement;
 struct Block;
 struct ReturnStatement;
 struct IfStatement;
@@ -55,9 +78,11 @@ struct InfixExpression;
 
 class ASTVisitor {
 public:
+   virtual void visit(TesterBoilerplate* tester) = 0;
    virtual void visit(PackageDeclaration* packageDeclaration) = 0;
    virtual void visit(ClassDeclaration* classDeclaration) = 0;
    virtual void visit(MethodDeclaration* methodDeclaration) = 0;
+   virtual void visit(AssertStatement* assert) = 0;
    virtual void visit(Block* block) = 0;
    virtual void visit(ReturnStatement* returnStatement) = 0;
    virtual void visit(IfStatement* ifStatement) = 0;
@@ -87,6 +112,31 @@ private:
 
 //------------------------------------------------------------------------------------
 
+// For now just a quick-fix to get the boilerplate for A1Test.java etc. up.
+struct TesterBoilerplate : ASTNode {
+   TesterBoilerplate(const std::string& packageName, const std::string& className,
+         const std::string& methodName, const std::string& name, 
+         ASTNode* parent = nullptr)
+      :ASTNode{parent}, m_packageName{packageName}, m_className{className}, 
+      m_methodName{methodName}, m_name{name} {}
+
+   ~TesterBoilerplate(); 
+
+   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+
+   const std::string& getPackageName() const { return m_packageName; }
+   const std::string& getClassName() const { return m_className; }
+   const std::string& getMethodName() const { return m_methodName; }
+   const std::vector<AssertStatement*>& getAsserts() const { return m_asserts; }
+   void addAssert(AssertStatement* assert) { m_asserts.push_back(assert); }
+private:
+   std::string m_packageName, m_className, m_methodName;
+   std::string m_name;
+   std::vector<AssertStatement*> m_asserts;
+};
+
+//------------------------------------------------------------------------------------
+
 struct PackageDeclaration : ASTNode {
    PackageDeclaration(const std::string& name, ClassDeclaration* classDeclaration,
          ASTNode* parent = nullptr)
@@ -106,6 +156,7 @@ private:
 //------------------------------------------------------------------------------------
 
 struct Declaration : ASTNode {
+   virtual ~Declaration() {}
 protected:
    Declaration(ASTNode* parent)
       :ASTNode{parent} {}
@@ -114,6 +165,7 @@ protected:
 //------------------------------------------------------------------------------------
 
 struct Statement : ASTNode {
+   virtual ~Statement() {}
 protected:
    Statement(ASTNode* parent)
       :ASTNode{parent} {}
@@ -122,6 +174,7 @@ protected:
 //------------------------------------------------------------------------------------
 
 struct Expression : ASTNode {
+   virtual ~Expression() {}
 protected:
    Expression(ASTNode* parent)
       :ASTNode{parent} {}
@@ -182,6 +235,24 @@ private:
    std::string m_name;
    std::vector<Parameter> m_params;
    Type m_returnType;
+};
+
+//------------------------------------------------------------------------------------
+
+struct AssertStatement : Statement {
+   AssertStatement(const std::string& methodName, const std::vector<int>& parameters,
+         const int result, ASTNode* parent = nullptr) 
+   :Statement{parent}, m_methodName{methodName}, m_params{parameters}, m_res{result} {}
+
+   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+
+   const std::string& getMethodName() const { return m_methodName; }
+   const std::vector<int>& getParameters() const { return m_params; }
+   const int getResult() const { return m_res; }
+private:
+   std::string m_methodName;
+   std::vector<int> m_params;
+   int m_res;
 };
 
 //------------------------------------------------------------------------------------
@@ -325,21 +396,138 @@ private:
 //------------------------------------------------------------------------------------
 
 struct JavaPrinter : ASTVisitor {
+   void visit(TesterBoilerplate* tester);
    void visit(PackageDeclaration* packageDeclaration);
    void visit(ClassDeclaration* classDeclaration);
    void visit(MethodDeclaration* methodDeclaration);
+   void visit(AssertStatement* assert);
    void visit(Block* block);
    void visit(ReturnStatement* returnStatement);
    void visit(IfStatement* ifStatement);
-   void visit(Name* name) { m_os << name->getName(); }
+   void visit(Name* name) { *m_os << name->getName(); }
    void visit(BooleanLiteral* booleanLiteral);
    void visit(NumberLiteral* numberLiteral);
    void visit(InfixExpression* infixExpression);
 
+   void setOutStream(std::ostream& os) { m_os = &os; }
    void printIndents() const;
+   void printIntVector(const std::vector<int>& v) const;
    void incrementIndents() { ++m_indents; }
    void decrementIndents() { --m_indents; }
 private:
    int m_indents{0};
-   std::ostream& m_os = std::cout;
+   std::ostream* m_os = &std::cout;
 };
+
+//------------------------------------------------------------------------------------
+
+struct ResultFinder : ASTVisitor {
+   ResultFinder(const std::vector<int>& inputs, 
+         const std::vector<std::string> inputNames, ASTNode* parent = nullptr)
+      :m_in{inputs}, m_inNames{inputNames} {}
+
+   void visit(TesterBoilerplate* tester) {} // Shouldn't be used
+   void visit(PackageDeclaration* packageDeclaration);
+   void visit(ClassDeclaration* classDeclaration);
+   void visit(MethodDeclaration* methodDeclaration);
+   void visit(AssertStatement* assert) {} // Shouldn't be used
+   void visit(Block* block);
+   void visit(ReturnStatement* returnStatement);
+   void visit(IfStatement* ifStatement);
+   void visit(Name* name);
+   void visit(BooleanLiteral* booleanLiteral);
+   void visit(NumberLiteral* numberLiteral);
+   void visit(InfixExpression* infixExpression);
+
+   const std::string& getResult() const { return m_res; }
+
+   void addInput(const int i) { m_in.push_back(i); }
+   // Add check for uniqueness
+   void addInputName(const std::string& s) { m_inNames.push_back(s); }
+private:
+   std::string m_res;
+   // Put in one "formalParameter" struct
+   std::vector<int> m_in;
+   std::vector<std::string> m_inNames;
+
+   std::string m_compareName;
+   int m_compareVal{0};
+   bool m_compare{false};
+   InfixOperator m_op{InfixOperator::LESS_EQUALS};
+};
+
+//------------------------------------------------------------------------------------
+
+// To do: include error checking for successful directory creation.
+void makeDirectories(const std::string& studentNumber);
+
+//------------------------------------------------------------------------------------
+
+// Specifically prints the output of node->accept(printer) (i.e. printer->visit(node)) 
+// to the file "fileName", which is created 
+// Also at some point JavaPrinter* can be convered to some sort of base Printer*
+// class, and then this function can be used to pretty-print into different languages.
+void writeToFile(const boost::filesystem::path& path, const std::string& fileName, 
+      JavaPrinter* printer, ASTNode* node);
+
+//------------------------------------------------------------------------------------
+
+void readStudentNumbers(const std::string& fileName, std::vector<std::string>& v);
+
+//------------------------------------------------------------------------------------
+
+void createReturnBlocks(const std::vector<std::string>& returnNumbers, 
+      std::vector<Block*>& returnBlocks);
+
+//------------------------------------------------------------------------------------
+
+void createInfixExpressions(const std::vector<std::string>& names, 
+      const std::vector<int>& numbers, 
+      std::vector<InfixExpression*>& infixExpressions);
+
+//------------------------------------------------------------------------------------
+
+void createInfixExpressions(const std::vector<std::string>& names, 
+      const std::vector<std::string>& numbers, 
+      std::vector<InfixExpression*>& infixExpressions);
+
+//------------------------------------------------------------------------------------
+
+// Even statements are then-statements; odd statements are else-statements
+void createIfBlocks(const std::vector<InfixExpression*>& infixExpressions, 
+      const std::vector<Block*>& statements, std::vector<Block*>& ifBlocks);
+
+//------------------------------------------------------------------------------------
+
+PackageDeclaration* createBoilerPlate(const std::string& packageName, 
+      const std::string& className, Block* methodBlock, 
+      const std::string& methodName, const std::vector<Parameter>& methodParameters, 
+      const Type methodType);
+
+//------------------------------------------------------------------------------------
+
+void createIfTreeBlock(const std::vector<std::string>& returnValues,
+      const std::vector<std::string>& orderedVariables, 
+      const std::vector<std::string> testNumbers, Block* myBlock);
+
+//------------------------------------------------------------------------------------
+
+void randomizeTree(std::vector<std::string>& returnValues, 
+      std::vector<std::string>& ifNames, std::vector<std::string>& ifNumbers);
+
+//------------------------------------------------------------------------------------
+
+// Fills vec with uniformly distributed integers from -range to range about 0,
+// in string form ("0", "1", etc.)
+void fillRandomVector(const unsigned numberToFill, const int range, 
+      std::vector<std::string>& outputVec, const bool unique = false);
+
+//------------------------------------------------------------------------------------
+
+void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber);
+
+//------------------------------------------------------------------------------------
+
+void printTests(JavaPrinter* myPrinter, PackageDeclaration* package, 
+      const std::string& className, const std::string& methodName, 
+      const std::string& name, boost::filesystem::path studentPath);

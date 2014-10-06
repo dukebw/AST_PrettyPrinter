@@ -1,3 +1,20 @@
+Right now the assignment generator assumes that the student numbers are stored in a file called "STUDENT_NUMBERS".
+
+Much apologies: as of yet only A1 and A2 generation is implemented. A3 coming soon! Newest versions can be found at https://github.come/dukebw/AST_PrettyPrinter.
+
+To install Boost (on Unix): 
+Option 1: Use your package manager (version of Boost may be slightly old).
+
+Option 2: get boost_1_56_0.tar.bz2 from www.boost.org/users/history/version_1_56_0.html.
+
+Then go to the directory where you want the Boost installation and execute tar --bzip2 -xf /path/to/boost_1_56_0.tar.bz2 (for example, /usr/local/boost_1_56_0.tar.bz2).
+
+From the boost_1_56_0 directory, type ./bootstrap.sh --with-libraries=filesystem --with-libraries=system, then type ./b2 install. Alternatively, as I did, simply type ./bootstrap.sh then ./b2 install to do a full install. Reference: www.boost.org/docs/libs/1_56_0/more/getting_started/unix-variants.html.
+
+Next you will have to add the directory $BOOST_HOME/boost_1_56_0/stage/lib/ to your LD_LIBRARY_PATH environment variable, where $BOOST_HOME is wherever Boost was installed (/usr/local/ for example).
+
+Potentially you may have to add $BOOST_HOME or $BOOST_HOME/boost_1_56_0 to your $PATH variable; it appears that I didn't have to. Note that to link the boost::filesystem and boost::system libraries, -lboost_filesystem and -lboost_system have to be added to the compile command (e.g. g++ -std=c++11 test.cpp -o test -lboost_filesystem -lboost_system).
+
 This is a first incarnation of an AST that is ultimately supposed to represent a single function with return type int within a class. 
 
 The function will be an if-else construct in the cases of A1.java and A2.java, and a for loop representing a recurrence relation in the case of A3.java
