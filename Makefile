@@ -1,7 +1,7 @@
 #
 # A simple makefile for compiling C++ programs
 
-CXXFLAGS = -std=c++11 -Wall
+CXXFLAGS = -std=c++11 -Wall -pedantic
 CXX = g++
 SOURCES = test_print_AST.cpp AST.cpp
 OBJS = ${SOURCES:.cpp=.o}

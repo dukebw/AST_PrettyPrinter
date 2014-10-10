@@ -41,13 +41,6 @@ TesterBoilerplate::~TesterBoilerplate()
 
 //------------------------------------------------------------------------------------
 
-PackageDeclaration::~PackageDeclaration()
-{
-   if (m_classDecl) delete m_classDecl;
-}
-
-//------------------------------------------------------------------------------------
-
 MethodDeclaration::~MethodDeclaration()
 {
    if (m_body) delete m_body;
@@ -151,21 +144,14 @@ void JavaPrinter::visit(TesterBoilerplate* tester)
 
 //------------------------------------------------------------------------------------
 
-void JavaPrinter::visit(PackageDeclaration* packageDeclaration)
+void JavaPrinter::visit(Boilerplate* boilerplate)
 {
    printIndents();
-   *m_os << "package " << packageDeclaration->getName() << ';' << std::endl;
-   packageDeclaration->getClassDeclaration()->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(ClassDeclaration* classDeclaration)
-{
+   *m_os << "package " << boilerplate->getName(0) << ';' << std::endl;
    printIndents();
-   *m_os << "public class " << classDeclaration->getName() << " {" << std::endl;
+   *m_os << "public class " << boilerplate->getName(1) << " {" << std::endl;
    incrementIndents();
-   for (Declaration* d : classDeclaration->getBodyDeclarations())
+   for (Declaration* d : boilerplate->getBodyDeclarations())
       d->accept(this);   
 
    decrementIndents();
@@ -304,16 +290,9 @@ void JavaPrinter::printIntVector(const std::vector<int>& v) const
 
 //------------------------------------------------------------------------------------
 
-void ResultFinder::visit(PackageDeclaration* packageDeclaration)
+void ResultFinder::visit(Boilerplate* boilerplate)
 {
-   packageDeclaration->getClassDeclaration()->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(ClassDeclaration* classDeclaration)
-{
-   for (Declaration* d : classDeclaration->getBodyDeclarations())
+   for (Declaration* d : boilerplate->getBodyDeclarations())
       d->accept(this);
 }
 
@@ -488,16 +467,17 @@ void createIfBlocks(const std::vector<InfixExpression*>& infixExpressions,
 
 //------------------------------------------------------------------------------------
 
-PackageDeclaration* createBoilerPlate(const std::string& packageName, 
+Boilerplate* createBoilerPlate(const std::string& packageName, 
       const std::string& className, Block* methodBlock, 
       const std::string& methodName, const std::vector<Parameter>& methodParameters, 
       const Type methodType)
 {
    MethodDeclaration* myMethod{new MethodDeclaration{methodBlock, methodName, 
       methodParameters, methodType}};
-   ClassDeclaration* myClass{new ClassDeclaration{className}};
-   myClass->addDeclaration(myMethod);
-   return new PackageDeclaration{packageName, myClass};
+   Boilerplate* myProgram{new Boilerplate{std::vector<std::string>{packageName, 
+      className}}};
+   myProgram->addDeclaration(myMethod);
+   return myProgram;
 }
 
 //------------------------------------------------------------------------------------
@@ -613,22 +593,22 @@ void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber)
       // ...
       std::vector<Parameter> casesParams{Parameter{Type::INT, "v"}, 
          Parameter{Type::INT, "u"}, Parameter{Type::INT, "w"}};
-      PackageDeclaration* myPackage1{createBoilerPlate("se2s03", "A1", myBlock1, 
+      Boilerplate* myProgram1{createBoilerPlate("se2s03", "A1", myBlock1, 
             "cases", casesParams, Type::INT)};
-      PackageDeclaration* myPackage2{createBoilerPlate("se2s03", "A1", myBlock2, 
+      Boilerplate* myProgram2{createBoilerPlate("se2s03", "A1", myBlock2, 
             "cases", casesParams, Type::INT)};
 
-      writeToFile(se2s03Path, "A1.java", myPrinter, myPackage1);
-      printTests(myPrinter, myPackage1, "A1", "cases", "A1Test", studentPath);
-      writeToFile(se2s03Path, "A2.java", myPrinter, myPackage2);
-      printTests(myPrinter, myPackage2, "A2", "cases", "A2Test", studentPath);
-      if (myPackage1) delete myPackage1;
-      if (myPackage2) delete myPackage2;
+      writeToFile(se2s03Path, "A1.java", myPrinter, myProgram1);
+      printTests(myPrinter, myProgram1, "A1", "cases", "A1Test", studentPath);
+      writeToFile(se2s03Path, "A2.java", myPrinter, myProgram2);
+      printTests(myPrinter, myProgram2, "A2", "cases", "A2Test", studentPath);
+      if (myProgram1) delete myProgram1;
+      if (myProgram2) delete myProgram2;
 }
 
 //------------------------------------------------------------------------------------
 
-void printTests(JavaPrinter* myPrinter, PackageDeclaration* package, 
+void printTests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
       const std::string& className, const std::string& methodName, 
       const std::string& name, boost::filesystem::path studentPath)
 {
@@ -648,7 +628,7 @@ void printTests(JavaPrinter* myPrinter, PackageDeclaration* package,
          outFileStream << randomArgs.back() << ", ";
       }
       ResultFinder myFinder{randomArgs, params};
-      package->accept(&myFinder);
+      myProgram->accept(&myFinder);
       tester->addAssert(new AssertStatement{methodName, randomArgs, 
             std::stoi(myFinder.getResult())});
       outFileStream << myFinder.getResult() << std::endl;

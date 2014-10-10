@@ -36,7 +36,7 @@ enum class Type {
 //------------------------------------------------------------------------------------
 
 enum class InfixOperator {
-   LESS_EQUALS, EQUALS, TIMES
+   LESS_EQUALS, EQUALS, TIMES, ASSIGNMENT
 };
 
 //------------------------------------------------------------------------------------
@@ -62,8 +62,7 @@ struct Parameter {
 class ASTNode;
 
 struct TesterBoilerplate;
-struct PackageDeclaration;
-struct ClassDeclaration;
+struct Boilerplate;
 struct MethodDeclaration;
 struct AssertStatement;
 struct Block;
@@ -73,14 +72,14 @@ struct Name;
 struct BooleanLiteral;
 struct NumberLiteral;
 struct InfixExpression;
+struct VarDeclFragment;
 
 //------------------------------------------------------------------------------------
 
 class ASTVisitor {
 public:
    virtual void visit(TesterBoilerplate* tester) = 0;
-   virtual void visit(PackageDeclaration* packageDeclaration) = 0;
-   virtual void visit(ClassDeclaration* classDeclaration) = 0;
+   virtual void visit(Boilerplate* boilerplate) = 0;
    virtual void visit(MethodDeclaration* methodDeclaration) = 0;
    virtual void visit(AssertStatement* assert) = 0;
    virtual void visit(Block* block) = 0;
@@ -137,24 +136,6 @@ private:
 
 //------------------------------------------------------------------------------------
 
-struct PackageDeclaration : ASTNode {
-   PackageDeclaration(const std::string& name, ClassDeclaration* classDeclaration,
-         ASTNode* parent = nullptr)
-      :ASTNode{parent}, m_name{name}, m_classDecl{classDeclaration} {}
-
-   ~PackageDeclaration();
-
-   void accept(ASTVisitor* visitor) { visitor->visit(this); }
-
-   const std::string& getName() { return m_name; }
-   ClassDeclaration* getClassDeclaration() { return m_classDecl; }
-private:
-   std::string m_name;
-   ClassDeclaration* m_classDecl;
-};
-
-//------------------------------------------------------------------------------------
-
 struct Declaration : ASTNode {
    virtual ~Declaration() {}
 protected:
@@ -183,24 +164,24 @@ protected:
 
 //------------------------------------------------------------------------------------
 
-struct ClassDeclaration : Declaration {
-   ClassDeclaration(const std::string& name, ASTNode* parent = nullptr)
-      :Declaration{parent}, m_name{name} {}
-   ClassDeclaration(const std::string& name, 
+struct Boilerplate : Declaration {
+   Boilerplate(const std::vector<std::string>& names, ASTNode* parent = nullptr)
+      :Declaration{parent}, m_names{names} {}
+   Boilerplate(const std::vector<std::string>& names, 
          const std::vector<Declaration*>& declarations, ASTNode* parent = nullptr)
-      :Declaration{parent}, m_name{name}, m_decls{declarations} {}
+      :Declaration{parent}, m_names{names}, m_decls{declarations} {}
 
-   ~ClassDeclaration() { for (Declaration* d : m_decls) if (d) delete d; }
+   ~Boilerplate() { for (Declaration* d : m_decls) if (d) delete d; }
 
    void accept(ASTVisitor* visitor) { visitor->visit(this); }
 
-   const std::string& getName() const { return m_name; }
-   const std::vector<Declaration*>& getBodyDeclarations() { return m_decls; }
+   const std::string& getName(unsigned i) const { return m_names.at(i); }
+   std::vector<Declaration*>& getBodyDeclarations() { return m_decls; }
 
-   void setName(const std::string& name) { m_name = name; }
+   void setName(unsigned i, const std::string& name) { m_names.at(i) = name; }
    void addDeclaration(Declaration* declaration) { m_decls.push_back(declaration); }
 private:
-   std::string m_name;
+   std::vector<std::string> m_names;
    // could be MethodDeclarations, FieldDeclarations etc.
    std::vector<Declaration*> m_decls; 
 };
@@ -237,6 +218,18 @@ private:
    Type m_returnType;
 };
 
+//------------------------------------------------------------------------------------
+
+struct VarDeclStatement : Statement {
+   VarDeclStatement(VarDeclExpression* varDecls, Type type, ASTNode* parent = nullptr)
+      :m_varDecls{varDecls}, m_type{type}
+   VarDeclFragment* getVarDeclFragment(int i) 
+   { 
+      return m_varDecls->getVarDeclFragment(i); 
+   }
+private:
+   VarDeclExpression* m_varDecls;
+};
 //------------------------------------------------------------------------------------
 
 struct AssertStatement : Statement {
@@ -325,6 +318,12 @@ private:
 
 //------------------------------------------------------------------------------------
 
+struct ForStatement : Statement {
+   ForStatement(std::vector<VarDeclFragment*>, )
+};
+
+//------------------------------------------------------------------------------------
+
 struct Name : Expression {
    Name(const std::string& name, ASTNode* parent = nullptr)
       :Expression{parent}, m_name{name} {}
@@ -395,10 +394,30 @@ private:
 
 //------------------------------------------------------------------------------------
 
+struct VarDeclFragment : InfixExpression {
+   VarDeclFragment(Name* name, NumberLiteral* value, Type type)
+      :InfixExpression{name,InfixOperator::ASSIGNMENT,value}, m_type{type} {}
+private:
+   Type m_type;
+};
+
+//------------------------------------------------------------------------------------
+
+struct VarDeclExpression : Expression {
+   VarDeclExpression(const std::vector<VarDeclFragment*>& varDeclFragments,
+         ASTNode* parent = nullptr)
+      :Expression{parent}, m_frags{varDeclFragments} {}
+
+   VarDeclFragment* getVarDeclFragment(int i) { return m_frags.at(i); }
+private:
+   std::vector<VarDeclFragment*>& m_frags;
+};
+
+//------------------------------------------------------------------------------------
+
 struct JavaPrinter : ASTVisitor {
    void visit(TesterBoilerplate* tester);
-   void visit(PackageDeclaration* packageDeclaration);
-   void visit(ClassDeclaration* classDeclaration);
+   void visit(Boilerplate* classDeclaration);
    void visit(MethodDeclaration* methodDeclaration);
    void visit(AssertStatement* assert);
    void visit(Block* block);
@@ -427,8 +446,7 @@ struct ResultFinder : ASTVisitor {
       :m_in{inputs}, m_inNames{inputNames} {}
 
    void visit(TesterBoilerplate* tester) {} // Shouldn't be used
-   void visit(PackageDeclaration* packageDeclaration);
-   void visit(ClassDeclaration* classDeclaration);
+   void visit(Boilerplate* boilerplate);
    void visit(MethodDeclaration* methodDeclaration);
    void visit(AssertStatement* assert) {} // Shouldn't be used
    void visit(Block* block);
@@ -499,7 +517,7 @@ void createIfBlocks(const std::vector<InfixExpression*>& infixExpressions,
 
 //------------------------------------------------------------------------------------
 
-PackageDeclaration* createBoilerPlate(const std::string& packageName, 
+Boilerplate* createBoilerPlate(const std::string& packageName, 
       const std::string& className, Block* methodBlock, 
       const std::string& methodName, const std::vector<Parameter>& methodParameters, 
       const Type methodType);
@@ -528,6 +546,6 @@ void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber);
 
 //------------------------------------------------------------------------------------
 
-void printTests(JavaPrinter* myPrinter, PackageDeclaration* package, 
+void printTests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
       const std::string& className, const std::string& methodName, 
       const std::string& name, boost::filesystem::path studentPath);
