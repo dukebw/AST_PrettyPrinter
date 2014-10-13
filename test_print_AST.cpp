@@ -10,10 +10,11 @@ try {
    JavaPrinter myPrinter;
    for (const std::string& s : studentNumbers) {
       printA1A2(&myPrinter, s);
+      printA3(&myPrinter, s);
    }
 }
-catch (BadComparison) {
-   std::cerr << "Comparison error." << std::endl;
+catch (BadArgument) {
+   std::cerr << "Unexpected argument found." << std::endl;
 }
 catch (BadSize) {
    std::cerr << "Range error, or other size error." << std::endl;

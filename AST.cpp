@@ -25,9 +25,27 @@ std::string infixOpToString(const InfixOperator infixOperator)
          return "<=";
       case InfixOperator::EQUALS:
          return "==";
+      case InfixOperator::PLUS:
+         return "+";
       case InfixOperator::TIMES:
          return "*";
+      case InfixOperator::ASSIGNMENT:
+         return "=";
       default:
+         return "_ERROR_";
+   }
+}
+
+//------------------------------------------------------------------------------------
+
+std::string postfixOpToString(const PostfixOperator postfixOperator)
+{
+   switch (postfixOperator) {
+      case PostfixOperator::INCREMENT:
+         return "++";
+      case PostfixOperator::DECREMENT:
+         return "--";
+      default: 
          return "_ERROR_";
    }
 }
@@ -45,6 +63,22 @@ MethodDeclaration::~MethodDeclaration()
 {
    if (m_body) delete m_body;
 }
+
+//------------------------------------------------------------------------------------
+
+VarDeclStatement::~VarDeclStatement() 
+{ 
+   for (VarDeclFragment* vd : m_varDecls) delete vd; 
+}
+
+//------------------------------------------------------------------------------------
+
+AssignmentStatement::~AssignmentStatement()
+{
+   if (m_name) delete m_name;
+   if (m_expr) delete m_expr;
+}
+
 //------------------------------------------------------------------------------------
 
 IfStatement::~IfStatement()
@@ -78,6 +112,15 @@ void IfStatement::setElseStatement(Statement* statement)
    m_elseStmt = statement;
 }
 
+//------------------------------------------------------------------------------------
+
+ForStatement::~ForStatement()
+{
+   if (!m_forInits.empty()) for (VarDeclFragment* vdf : m_forInits) delete vdf;
+   if (m_expr) delete m_expr;
+   if (m_body) delete m_body;
+   if (!m_updaters.empty()) for (Expression* e : m_updaters) delete e;
+}
 //------------------------------------------------------------------------------------
 
 InfixExpression::~InfixExpression()
@@ -186,6 +229,19 @@ void JavaPrinter::visit(MethodDeclaration* methodDeclaration)
 
 //------------------------------------------------------------------------------------
 
+void JavaPrinter::visit(VarDeclStatement* varDeclStatement)
+{
+   *m_os << typeToString(varDeclStatement->getType()) << ' ';
+   for (unsigned i=0; i<varDeclStatement->getFragments().size(); ++i) {
+      varDeclStatement->getFragments().at(i)->accept(this);
+      if (i != varDeclStatement->getFragments().size() - 1)
+         *m_os << ", ";
+   }
+   *m_os << ';' << std::endl;
+}
+
+//------------------------------------------------------------------------------------
+
 void JavaPrinter::visit(AssertStatement* assert)
 {
    *m_os << "assertEquals(\"" << assert->getMethodName() << '(';
@@ -229,6 +285,16 @@ void JavaPrinter::visit(ReturnStatement* returnStatement)
 
 //------------------------------------------------------------------------------------
 
+void JavaPrinter::visit(AssignmentStatement* assignmentStatement)
+{ 
+   assignmentStatement->getName()->accept(this);
+   *m_os << " = ";
+   assignmentStatement->getExpression()->accept(this);
+   *m_os << ';' << std::endl;
+}
+
+//------------------------------------------------------------------------------------
+
 void JavaPrinter::visit(IfStatement* ifStatement)
 {
    *m_os << "if (";
@@ -241,6 +307,23 @@ void JavaPrinter::visit(IfStatement* ifStatement)
       ifStatement->getElseStatement()->accept(this);
       *m_os << std::endl;
    }
+}
+
+//------------------------------------------------------------------------------------
+
+void JavaPrinter::visit(ForStatement* forStatement)
+{
+   *m_os << "for (";
+   if (!forStatement->getInitializers().empty())
+      *m_os << typeToString(forStatement->getInitializers().at(0)->getType()) << ' ';
+   for (Expression* e : forStatement->getInitializers()) e->accept(this);
+   *m_os << "; ";
+   forStatement->getExpression()->accept(this);
+   *m_os << "; ";
+   for (Expression* e : forStatement->getUpdaters()) e->accept(this);
+   *m_os << ") ";
+   forStatement->getBody()->accept(this);
+   *m_os << std::endl;
 }
 
 //------------------------------------------------------------------------------------
@@ -267,6 +350,23 @@ void JavaPrinter::visit(InfixExpression* infixExpression)
    infixExpression->getLeftOperand()->accept(this);
    *m_os << ' ' << infixOpToString(infixExpression->getOperator()) << ' ';
    infixExpression->getRightOperand()->accept(this);
+}
+
+//------------------------------------------------------------------------------------
+
+void JavaPrinter::visit(PostfixExpression* postfixExpression)
+{
+   postfixExpression->getLeftOperand()->accept(this);
+   *m_os << postfixOpToString(postfixExpression->getOperator());
+}
+
+//------------------------------------------------------------------------------------
+
+void JavaPrinter::visit(VarDeclFragment* varDeclFragment)
+{
+   varDeclFragment->getLeftOperand()->accept(this);
+   *m_os << ' ' << infixOpToString(varDeclFragment->getOperator()) << ' ';
+   varDeclFragment->getRightOperand()->accept(this);
 }
 
 //------------------------------------------------------------------------------------
@@ -305,6 +405,14 @@ void ResultFinder::visit(MethodDeclaration* methodDeclaration)
 
 //------------------------------------------------------------------------------------
 
+void ResultFinder::visit(VarDeclStatement* varDeclStatement)
+{
+   for (VarDeclFragment* vdf : varDeclStatement->getFragments())
+      vdf->accept(this);
+}
+
+//------------------------------------------------------------------------------------
+
 void ResultFinder::visit(Block* block)
 {
    for (Statement* s : block->getStatements())
@@ -320,6 +428,22 @@ void ResultFinder::visit(ReturnStatement* returnStatement)
 
 //------------------------------------------------------------------------------------
 
+void ResultFinder::visit(AssignmentStatement* assignmentStatement)
+{
+   assignmentStatement->getName()->accept(this);
+   // Check that we're assigning to a variable already in the symbol table:
+   auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName);
+   if (result == m_inNames.end()) throw BadArgument{};
+
+   // Evaluate the right-hand expression:
+   assignmentStatement->getExpression()->accept(this);
+   for (unsigned i=0; i<m_inNames.size(); ++i)
+      if (m_inNames.at(i) == m_compareName)
+         m_in.at(i) = m_compareVal;
+}
+
+//------------------------------------------------------------------------------------
+
 void ResultFinder::visit(IfStatement* ifStatement)
 {
    ifStatement->getExpression()->accept(this);
@@ -331,9 +455,29 @@ void ResultFinder::visit(IfStatement* ifStatement)
 
 //------------------------------------------------------------------------------------
 
+void ResultFinder::visit(ForStatement* forStatement)
+{
+   for (Expression* e : forStatement->getInitializers())
+      e->accept(this);
+   forStatement->getExpression()->accept(this);
+   while (m_compare) {
+      forStatement->getBody()->accept(this);
+      for (Expression* e : forStatement->getUpdaters())
+         e->accept(this);
+      forStatement->getExpression()->accept(this);
+   }
+}
+
+//------------------------------------------------------------------------------------
+
 void ResultFinder::visit(Name* name)
 {
    m_compareName = name->getName();
+   auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName); 
+   if (result == m_inNames.end()) throw BadArgument{};
+   for (unsigned i=0; i<m_inNames.size(); ++i)
+      if (m_inNames.at(i) == m_compareName)
+         m_compareVal = m_in.at(i);
 }
    
 //------------------------------------------------------------------------------------
@@ -355,24 +499,63 @@ void ResultFinder::visit(NumberLiteral* numberLiteral)
 
 void ResultFinder::visit(InfixExpression* infixExpression)
 {
+   // Sets m_compareVal to the result of evaluating the InfixExpression (if it's
+   // an integer expression), or m_compare to the result if it's a boolean expression
    infixExpression->getLeftOperand()->accept(this);
-   for (unsigned i=0; i<m_in.size(); ++i)
-      if (m_inNames.at(i) == m_compareName) {
-         m_op = infixExpression->getOperator();
-         infixExpression->getRightOperand()->accept(this);
-         switch (m_op) {
-            case InfixOperator::LESS_EQUALS:
-               if (m_in.at(i) <= m_compareVal) m_compare = true;
-               else m_compare = false;
+   m_op = infixExpression->getOperator();
+   int temp{m_compareVal};
+   infixExpression->getRightOperand()->accept(this);
+   switch (m_op) {
+      case InfixOperator::LESS_EQUALS:
+         if (temp <= m_compareVal) m_compare = true;
+         else m_compare = false;
+         break;
+      case InfixOperator::EQUALS:
+         if (temp == m_compareVal) m_compare = true;
+         else m_compare = false;
+         break;
+      case InfixOperator::PLUS:
+         m_compareVal += temp;
+         break;
+      case InfixOperator::TIMES:
+         m_compareVal *= temp;
+         break;
+      default:
+         throw BadArgument{};
+   }
+}
+
+//------------------------------------------------------------------------------------
+
+void ResultFinder::visit(PostfixExpression* postfixExpression)
+{
+   // A bit of a hack: only works with variable++ or variable--
+   postfixExpression->getLeftOperand()->accept(this);
+   for (unsigned i=0; i<m_inNames.size(); ++i)
+      if (m_inNames.at(i) == m_compareName)
+         switch(postfixExpression->getOperator()) {
+            case PostfixOperator::INCREMENT:
+               m_in.at(i) = ++m_compareVal;
                break;
-            case InfixOperator::EQUALS:
-               if (m_in.at(i) == m_compareVal) m_compare = true;
-               else m_compare = false;
+            case PostfixOperator::DECREMENT:
+               m_in.at(i) = --m_compareVal;
                break;
             default:
-               throw BadComparison{};
+               throw BadArgument{};
+               break;
          }
-      }
+}
+
+//------------------------------------------------------------------------------------
+
+void ResultFinder::visit(VarDeclFragment* varDeclFragment)
+{
+   varDeclFragment->getLeftOperand()->accept(this);
+   auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName);
+   if (result != m_inNames.end()) throw BadArgument{};
+   m_inNames.push_back(m_compareName);
+   varDeclFragment->getRightOperand()->accept(this);
+   m_in.push_back(m_compareVal);
 }
 
 //------------------------------------------------------------------------------------
@@ -604,6 +787,114 @@ void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber)
       printTests(myPrinter, myProgram2, "A2", "cases", "A2Test", studentPath);
       if (myProgram1) delete myProgram1;
       if (myProgram2) delete myProgram2;
+}
+
+//------------------------------------------------------------------------------------
+
+void createInitialization(std::vector<VarDeclFragment*>& a0a1anFragments, 
+      std::vector<VarDeclFragment*>& xyFragments)
+{
+   if (!a0a1anFragments.empty() || !xyFragments.empty()) throw BadSize{};
+
+   const int RANGE{5};
+   Rand_int rnd{-RANGE, RANGE};
+
+   // Create recurrence relation.
+   std::vector<std::string> variableNames{"a0", "a1", "an", "x", "y"};
+   std::vector<std::string> variableValues;
+   
+   int value{rnd()};
+   while (variableValues.size() < variableNames.size()) {
+      while (value == 0) value = rnd();
+      variableValues.push_back(std::to_string(value));
+      value = rnd();
+   }
+
+   // int a0 = 3, a1 = -1, an = 0;
+   // int x = 1, y = -3;
+   std::vector<Name*> varNamePtrs;
+   std::vector<NumberLiteral*> varValPtrs;
+   for (unsigned i=0; i<variableNames.size(); ++i) {
+      varNamePtrs.push_back(new Name{variableNames.at(i)});
+      varValPtrs.push_back(new NumberLiteral{variableValues.at(i)});
+   }
+
+   // a0, a1 and an declarations go on one line; x and y declarations go on the next.
+   for (int i=0; i<3; ++i)
+      a0a1anFragments.push_back(new VarDeclFragment{varNamePtrs.at(i), 
+            varValPtrs.at(i), Type::INT});
+   for (unsigned i=3; i<varNamePtrs.size(); ++i)
+      xyFragments.push_back(new VarDeclFragment{varNamePtrs.at(i), varValPtrs.at(i),
+            Type::INT});
+   
+}
+
+//------------------------------------------------------------------------------------
+
+void createForBlock(Block* forBlock)
+{
+   // { an = x*a0 + y*a1; a0 = a1; a1 = an; }
+   InfixExpression* xTimesa0{new InfixExpression{new Name{"x"}, InfixOperator::TIMES,
+      new Name{"a0"}}};
+   InfixExpression* yTimesa1{new InfixExpression{new Name{"y"}, InfixOperator::TIMES,
+      new Name{"a1"}}};
+   InfixExpression* xa0Plusya1{new InfixExpression{xTimesa0, 
+      InfixOperator::PLUS, yTimesa1}};
+   forBlock->addStatement(new AssignmentStatement{new Name{"an"}, xa0Plusya1});
+   forBlock->addStatement(new AssignmentStatement{new Name{"a0"}, new Name{"a1"}});
+   forBlock->addStatement(new AssignmentStatement{new Name{"a1"}, new Name{"an"}});
+}
+
+//------------------------------------------------------------------------------------
+
+void createRecurrenceBlock(Block* myBlock)
+{
+   std::vector<VarDeclFragment*> a0a1anFragments;
+   std::vector<VarDeclFragment*> xyFragments;
+   createInitialization(a0a1anFragments, xyFragments);
+   myBlock->addStatement(new VarDeclStatement{a0a1anFragments, Type::INT});
+   myBlock->addStatement(new VarDeclStatement{xyFragments, Type::INT});
+
+   // if (n==0) return a0;
+   InfixExpression* nEqualsZeroInfix{new InfixExpression{new Name{"n"}, 
+      InfixOperator::EQUALS, new NumberLiteral{"0"}}};
+   ReturnStatement* nEqualsZeroReturn{new ReturnStatement{new Name{"a0"}}};
+   myBlock->addStatement(new IfStatement{nEqualsZeroInfix, nEqualsZeroReturn});
+   // if (n==1) return a1;
+   InfixExpression* nEqualsOneInfix{new InfixExpression{new Name{"n"}, 
+      InfixOperator::EQUALS, new NumberLiteral{"1"}}};
+   ReturnStatement* nEqualsOneReturn{new ReturnStatement{new Name{"a1"}}};
+   myBlock->addStatement(new IfStatement{nEqualsOneInfix, nEqualsOneReturn});
+
+   // for (int i=2; i<=n; i++) { an = x*a0 + y*a1; a0 = a1; a1 = an; }
+   std::vector<VarDeclFragment*> forInit{new VarDeclFragment{new Name{"i"}, 
+      new NumberLiteral{"2"}, Type::INT}};
+   std::vector<Expression*> forUpdaters{new PostfixExpression{new Name{"i"}, 
+      PostfixOperator::INCREMENT}};
+   Block* forBlock{new Block};
+   createForBlock(forBlock);
+   myBlock->addStatement(new ForStatement{forInit, new InfixExpression{new Name{"i"},
+         InfixOperator::LESS_EQUALS, new Name{"n"}}, forUpdaters, forBlock});
+   // return an;
+   myBlock->addStatement(new ReturnStatement{new Name{"an"}});
+}
+
+//------------------------------------------------------------------------------------
+
+void printA3(JavaPrinter* myPrinter, const std::string& studentNumber)
+{
+   namespace bfs = boost::filesystem;
+   bfs::path studentPath{studentNumber};
+   bfs::path se2s03Path{studentPath / "se2s03"};
+
+   Block* myBlock{new Block};
+   createRecurrenceBlock(myBlock);
+
+   std::vector<Parameter> recParams{Parameter{Type::INT, "n"}};
+   Boilerplate* myProgram{createBoilerPlate("se2s03", "A3", myBlock,
+         "Rec", recParams, Type::INT)};
+   writeToFile(se2s03Path, "A3.java", myPrinter, myProgram);
+   if (myProgram) delete myProgram;
 }
 
 //------------------------------------------------------------------------------------

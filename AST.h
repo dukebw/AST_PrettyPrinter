@@ -10,7 +10,7 @@
 
 class BadPath{}; // For throwing file-existence errors
 class BadSize{}; // For throwing range errors
-class BadComparison{}; // for ResultFinder coming across the wrong operator
+class BadArgument{}; // for coming across the wrong operator
 
 //------------------------------------------------------------------------------------
 
@@ -36,7 +36,13 @@ enum class Type {
 //------------------------------------------------------------------------------------
 
 enum class InfixOperator {
-   LESS_EQUALS, EQUALS, TIMES, ASSIGNMENT
+   LESS_EQUALS, EQUALS, PLUS, TIMES, ASSIGNMENT
+};
+
+//------------------------------------------------------------------------------------
+
+enum class PostfixOperator {
+   INCREMENT, DECREMENT
 };
 
 //------------------------------------------------------------------------------------
@@ -47,6 +53,10 @@ std::string typeToString(const Type t);
 //------------------------------------------------------------------------------------
 
 std::string infixOpToString(const InfixOperator infixOperator);
+
+//------------------------------------------------------------------------------------
+
+std::string postfixOpToString(const PostfixOperator postfixOperator);
 
 //------------------------------------------------------------------------------------
 
@@ -64,14 +74,18 @@ class ASTNode;
 struct TesterBoilerplate;
 struct Boilerplate;
 struct MethodDeclaration;
+struct VarDeclStatement;
 struct AssertStatement;
 struct Block;
 struct ReturnStatement;
+struct AssignmentStatement;
 struct IfStatement;
+struct ForStatement;
 struct Name;
 struct BooleanLiteral;
 struct NumberLiteral;
 struct InfixExpression;
+struct PostfixExpression;
 struct VarDeclFragment;
 
 //------------------------------------------------------------------------------------
@@ -81,14 +95,19 @@ public:
    virtual void visit(TesterBoilerplate* tester) = 0;
    virtual void visit(Boilerplate* boilerplate) = 0;
    virtual void visit(MethodDeclaration* methodDeclaration) = 0;
+   virtual void visit(VarDeclStatement* varDeclStatement) = 0;
    virtual void visit(AssertStatement* assert) = 0;
    virtual void visit(Block* block) = 0;
    virtual void visit(ReturnStatement* returnStatement) = 0;
+   virtual void visit(AssignmentStatement* assignmentStatement) = 0;
    virtual void visit(IfStatement* ifStatement) = 0;
+   virtual void visit(ForStatement* ForStatement) = 0;
    virtual void visit(Name* name) = 0;
    virtual void visit(BooleanLiteral* booleanLiteral) = 0;
    virtual void visit(NumberLiteral* numberLiteral) = 0;
    virtual void visit(InfixExpression* infixExpression) = 0;
+   virtual void visit(PostfixExpression* postfixExpression) = 0;
+   virtual void visit(VarDeclFragment* varDeclFragment) = 0;
 };
 
 //------------------------------------------------------------------------------------
@@ -221,15 +240,26 @@ private:
 //------------------------------------------------------------------------------------
 
 struct VarDeclStatement : Statement {
-   VarDeclStatement(VarDeclExpression* varDecls, Type type, ASTNode* parent = nullptr)
-      :m_varDecls{varDecls}, m_type{type}
+   VarDeclStatement(std::vector<VarDeclFragment*> varDecls, Type type, 
+         ASTNode* parent = nullptr)
+      :Statement{parent}, m_varDecls{varDecls}, m_type{type} {}
+
+   ~VarDeclStatement();
+
+   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+
    VarDeclFragment* getVarDeclFragment(int i) 
    { 
-      return m_varDecls->getVarDeclFragment(i); 
+      return m_varDecls.at(i); 
    }
+
+   const std::vector<VarDeclFragment*>& getFragments() { return m_varDecls; }
+   Type getType() const { return m_type; }
 private:
-   VarDeclExpression* m_varDecls;
+   std::vector<VarDeclFragment*> m_varDecls;
+   Type m_type;
 };
+
 //------------------------------------------------------------------------------------
 
 struct AssertStatement : Statement {
@@ -289,6 +319,23 @@ private:
 
 //------------------------------------------------------------------------------------
 
+struct AssignmentStatement : Statement {
+   AssignmentStatement(Name* name, Expression* expression, ASTNode* parent = nullptr)
+      :Statement{parent}, m_name{name}, m_expr{expression} {}
+
+   ~AssignmentStatement();
+
+   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+
+   Name* getName() { return m_name; }
+   Expression* getExpression() { return m_expr; }
+private:
+   Name* m_name;
+   Expression* m_expr;
+};
+
+//------------------------------------------------------------------------------------
+
 struct IfStatement : Statement {
    IfStatement(Expression* expression, Statement* thenStatement,
          Statement* elseStatement = nullptr, ASTNode* parent = nullptr)
@@ -319,7 +366,28 @@ private:
 //------------------------------------------------------------------------------------
 
 struct ForStatement : Statement {
-   ForStatement(std::vector<VarDeclFragment*>, )
+   // Initializers should consist of either a single VarDeclExpression, or
+   // a sequence of assignment expressions. Updaters should consist of a sequence of
+   // statement-expressions. To do: add checks.
+   ForStatement(std::vector<VarDeclFragment*> initializers, Expression* expression, 
+        std::vector<Expression*> updaters, Statement* bodyStatement, 
+        ASTNode* parent = nullptr)
+      :Statement{parent}, m_forInits{initializers}, m_expr{expression}, 
+      m_updaters{updaters}, m_body{bodyStatement} {}
+
+   ~ForStatement();
+
+   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+
+   const std::vector<VarDeclFragment*>& getInitializers() { return m_forInits; }
+   Expression* getExpression() { return m_expr; }
+   const std::vector<Expression*>& getUpdaters() { return m_updaters; }
+   Statement* getBody() { return m_body; }
+private:
+   std::vector<VarDeclFragment*> m_forInits;
+   Expression* m_expr;
+   std::vector<Expression*> m_updaters;
+   Statement* m_body;
 };
 
 //------------------------------------------------------------------------------------
@@ -370,17 +438,17 @@ private:
 //------------------------------------------------------------------------------------
 
 struct InfixExpression : Expression {
-   InfixExpression(Expression* leftHand, InfixOperator infixOperator, 
+   InfixExpression(Expression* leftHand, const InfixOperator infixOperator, 
          Expression* rightHand, ASTNode* parent = nullptr)
       :Expression{parent}, m_leftHand{leftHand}, m_op{infixOperator}, 
       m_rightHand{rightHand} {}
 
    ~InfixExpression();
 
-   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+   virtual void accept(ASTVisitor* visitor) { visitor->visit(this); }
 
    Expression* getLeftOperand() { return m_leftHand; }
-   InfixOperator getOperator() { return m_op; }
+   InfixOperator getOperator() const { return m_op; }
    Expression* getRightOperand() { return m_rightHand; }
 
    void setLeftOperand(Expression* expression);
@@ -394,23 +462,33 @@ private:
 
 //------------------------------------------------------------------------------------
 
-struct VarDeclFragment : InfixExpression {
-   VarDeclFragment(Name* name, NumberLiteral* value, Type type)
-      :InfixExpression{name,InfixOperator::ASSIGNMENT,value}, m_type{type} {}
+struct PostfixExpression : Expression {
+   PostfixExpression(Expression* leftHand, const PostfixOperator postfixOperator,
+         ASTNode* parent = nullptr)
+      :Expression{parent}, m_leftHand{leftHand}, m_op{postfixOperator} {}
+
+   ~PostfixExpression() { if (m_leftHand) delete m_leftHand; }
+
+   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+
+   Expression* getLeftOperand() { return m_leftHand; }
+   PostfixOperator getOperator() const { return m_op; }
 private:
-   Type m_type;
+   Expression* m_leftHand;
+   PostfixOperator m_op;
 };
 
 //------------------------------------------------------------------------------------
 
-struct VarDeclExpression : Expression {
-   VarDeclExpression(const std::vector<VarDeclFragment*>& varDeclFragments,
-         ASTNode* parent = nullptr)
-      :Expression{parent}, m_frags{varDeclFragments} {}
+struct VarDeclFragment : InfixExpression {
+   VarDeclFragment(Name* name, NumberLiteral* value, Type type)
+      :InfixExpression{name, InfixOperator::ASSIGNMENT, value}, m_type{type} {}
 
-   VarDeclFragment* getVarDeclFragment(int i) { return m_frags.at(i); }
+   void accept(ASTVisitor* visitor) { visitor->visit(this); }
+
+   Type getType() const { return m_type; }
 private:
-   std::vector<VarDeclFragment*>& m_frags;
+   Type m_type;
 };
 
 //------------------------------------------------------------------------------------
@@ -419,14 +497,19 @@ struct JavaPrinter : ASTVisitor {
    void visit(TesterBoilerplate* tester);
    void visit(Boilerplate* classDeclaration);
    void visit(MethodDeclaration* methodDeclaration);
+   void visit(VarDeclStatement* varDeclStatement);
    void visit(AssertStatement* assert);
    void visit(Block* block);
    void visit(ReturnStatement* returnStatement);
+   void visit(AssignmentStatement* assignmentStatement);
    void visit(IfStatement* ifStatement);
+   void visit(ForStatement* forStatement);
    void visit(Name* name) { *m_os << name->getName(); }
    void visit(BooleanLiteral* booleanLiteral);
    void visit(NumberLiteral* numberLiteral);
-   void visit(InfixExpression* infixExpression);
+   virtual void visit(InfixExpression* infixExpression);
+   void visit(PostfixExpression* postfixExpression);
+   void visit(VarDeclFragment* varDeclFragment);
 
    void setOutStream(std::ostream& os) { m_os = &os; }
    void printIndents() const;
@@ -448,14 +531,19 @@ struct ResultFinder : ASTVisitor {
    void visit(TesterBoilerplate* tester) {} // Shouldn't be used
    void visit(Boilerplate* boilerplate);
    void visit(MethodDeclaration* methodDeclaration);
+   void visit(VarDeclStatement* varDeclStatement);
    void visit(AssertStatement* assert) {} // Shouldn't be used
    void visit(Block* block);
    void visit(ReturnStatement* returnStatement);
+   void visit(AssignmentStatement* assignmentStatement);
    void visit(IfStatement* ifStatement);
+   void visit(ForStatement* forStatement);
    void visit(Name* name);
    void visit(BooleanLiteral* booleanLiteral);
    void visit(NumberLiteral* numberLiteral);
-   void visit(InfixExpression* infixExpression);
+   virtual void visit(InfixExpression* infixExpression);
+   void visit(PostfixExpression* postfixExpression);
+   void visit(VarDeclFragment* varDeclFragment);
 
    const std::string& getResult() const { return m_res; }
 
@@ -464,7 +552,7 @@ struct ResultFinder : ASTVisitor {
    void addInputName(const std::string& s) { m_inNames.push_back(s); }
 private:
    std::string m_res;
-   // Put in one "formalParameter" struct
+   // m_in and m_inNames work as a simple Symbol Table.
    std::vector<int> m_in;
    std::vector<std::string> m_inNames;
 
@@ -543,6 +631,23 @@ void fillRandomVector(const unsigned numberToFill, const int range,
 //------------------------------------------------------------------------------------
 
 void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber);
+
+//------------------------------------------------------------------------------------
+
+void createInitialization(std::vector<VarDeclFragment*>& a0a1anFragments,
+      std::vector<VarDeclFragment*>& xyFragments);
+
+//------------------------------------------------------------------------------------
+
+void createForBlock(Block* myBlock);
+
+//------------------------------------------------------------------------------------
+
+void createRecurrenceBlock(Block* myBlock);
+
+//------------------------------------------------------------------------------------
+
+void printA3(JavaPrinter* myPrinter, const std::string& studentNumber);
 
 //------------------------------------------------------------------------------------
 
