@@ -14,6 +14,13 @@ class BadArgument{}; // for coming across the wrong operator
 
 //------------------------------------------------------------------------------------
 
+template <typename T> int signum(T val)
+{
+   return (val > T(0)) - (val < T(0));
+}
+
+//------------------------------------------------------------------------------------
+
 // This random number generator will produce a DIFFERENT sequence of random numbers
 // each time the program is run. If the SAME sequence of random numbers is desired
 // for testing purposes use a std::default_random_engine member re and return dist(re);
@@ -480,14 +487,19 @@ private:
 
 //------------------------------------------------------------------------------------
 
-struct VarDeclFragment : InfixExpression {
-   VarDeclFragment(Name* name, NumberLiteral* value, Type type)
-      :InfixExpression{name, InfixOperator::ASSIGNMENT, value}, m_type{type} {}
+struct VarDeclFragment : Expression {
+   VarDeclFragment(Name* name, Expression* expression, Type type, 
+         ASTNode* parent = nullptr)
+      :Expression{parent}, m_leftHand{name}, m_rightHand{expression}, m_type{type} {}
 
    void accept(ASTVisitor* visitor) { visitor->visit(this); }
 
+   Name* getLeftOperand() { return m_leftHand; }
+   Expression* getRightOperand() { return m_rightHand; }
    Type getType() const { return m_type; }
 private:
+   Name* m_leftHand;
+   Expression* m_rightHand;
    Type m_type;
 };
 
@@ -507,7 +519,7 @@ struct JavaPrinter : ASTVisitor {
    void visit(Name* name) { *m_os << name->getName(); }
    void visit(BooleanLiteral* booleanLiteral);
    void visit(NumberLiteral* numberLiteral);
-   virtual void visit(InfixExpression* infixExpression);
+   void visit(InfixExpression* infixExpression);
    void visit(PostfixExpression* postfixExpression);
    void visit(VarDeclFragment* varDeclFragment);
 
@@ -541,7 +553,7 @@ struct ResultFinder : ASTVisitor {
    void visit(Name* name);
    void visit(BooleanLiteral* booleanLiteral);
    void visit(NumberLiteral* numberLiteral);
-   virtual void visit(InfixExpression* infixExpression);
+   void visit(InfixExpression* infixExpression);
    void visit(PostfixExpression* postfixExpression);
    void visit(VarDeclFragment* varDeclFragment);
 
@@ -651,6 +663,12 @@ void printA3(JavaPrinter* myPrinter, const std::string& studentNumber);
 
 //------------------------------------------------------------------------------------
 
-void printTests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
+void printA1A2Tests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
       const std::string& className, const std::string& methodName, 
+      const std::string& name, boost::filesystem::path studentPath);
+
+//------------------------------------------------------------------------------------
+
+void printA3Tests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
+      const std::string& className, const std::string& methodName,
       const std::string& name, boost::filesystem::path studentPath);

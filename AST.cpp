@@ -365,7 +365,7 @@ void JavaPrinter::visit(PostfixExpression* postfixExpression)
 void JavaPrinter::visit(VarDeclFragment* varDeclFragment)
 {
    varDeclFragment->getLeftOperand()->accept(this);
-   *m_os << ' ' << infixOpToString(varDeclFragment->getOperator()) << ' ';
+   *m_os << " = ";
    varDeclFragment->getRightOperand()->accept(this);
 }
 
@@ -424,6 +424,7 @@ void ResultFinder::visit(Block* block)
 void ResultFinder::visit(ReturnStatement* returnStatement)
 {
    returnStatement->getExpression()->accept(this);
+   m_res = std::to_string(m_compareVal);
 }
 
 //------------------------------------------------------------------------------------
@@ -435,10 +436,12 @@ void ResultFinder::visit(AssignmentStatement* assignmentStatement)
    auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName);
    if (result == m_inNames.end()) throw BadArgument{};
 
+   // Save the to-be-assigned-to name
+   std::string assignTo{m_compareName};
    // Evaluate the right-hand expression:
    assignmentStatement->getExpression()->accept(this);
    for (unsigned i=0; i<m_inNames.size(); ++i)
-      if (m_inNames.at(i) == m_compareName)
+      if (m_inNames.at(i) == assignTo)
          m_in.at(i) = m_compareVal;
 }
 
@@ -449,7 +452,7 @@ void ResultFinder::visit(IfStatement* ifStatement)
    ifStatement->getExpression()->accept(this);
    if (m_compare)
       ifStatement->getThenStatement()->accept(this);
-   else
+   else if (ifStatement->getElseStatement())
       ifStatement->getElseStatement()->accept(this);
 }
 
@@ -474,10 +477,11 @@ void ResultFinder::visit(Name* name)
 {
    m_compareName = name->getName();
    auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName); 
-   if (result == m_inNames.end()) throw BadArgument{};
-   for (unsigned i=0; i<m_inNames.size(); ++i)
-      if (m_inNames.at(i) == m_compareName)
-         m_compareVal = m_in.at(i);
+   if (result != m_inNames.end()) {
+      for (unsigned i=0; i<m_inNames.size(); ++i)
+         if (m_inNames.at(i) == m_compareName)
+            m_compareVal = m_in.at(i);
+   }
 }
    
 //------------------------------------------------------------------------------------
@@ -503,22 +507,23 @@ void ResultFinder::visit(InfixExpression* infixExpression)
    // an integer expression), or m_compare to the result if it's a boolean expression
    infixExpression->getLeftOperand()->accept(this);
    m_op = infixExpression->getOperator();
-   int temp{m_compareVal};
+   int tempVal{m_compareVal};
+   InfixOperator tempOp{m_op};
    infixExpression->getRightOperand()->accept(this);
-   switch (m_op) {
+   switch (tempOp) {
       case InfixOperator::LESS_EQUALS:
-         if (temp <= m_compareVal) m_compare = true;
+         if (tempVal <= m_compareVal) m_compare = true;
          else m_compare = false;
          break;
       case InfixOperator::EQUALS:
-         if (temp == m_compareVal) m_compare = true;
+         if (tempVal == m_compareVal) m_compare = true;
          else m_compare = false;
          break;
       case InfixOperator::PLUS:
-         m_compareVal += temp;
+         m_compareVal += tempVal;
          break;
       case InfixOperator::TIMES:
-         m_compareVal *= temp;
+         m_compareVal *= tempVal;
          break;
       default:
          throw BadArgument{};
@@ -782,9 +787,9 @@ void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber)
             "cases", casesParams, Type::INT)};
 
       writeToFile(se2s03Path, "A1.java", myPrinter, myProgram1);
-      printTests(myPrinter, myProgram1, "A1", "cases", "A1Test", studentPath);
+      printA1A2Tests(myPrinter, myProgram1, "A1", "cases", "A1Test", studentPath);
       writeToFile(se2s03Path, "A2.java", myPrinter, myProgram2);
-      printTests(myPrinter, myProgram2, "A2", "cases", "A2Test", studentPath);
+      printA1A2Tests(myPrinter, myProgram2, "A2", "cases", "A2Test", studentPath);
       if (myProgram1) delete myProgram1;
       if (myProgram2) delete myProgram2;
 }
@@ -796,21 +801,25 @@ void createInitialization(std::vector<VarDeclFragment*>& a0a1anFragments,
 {
    if (!a0a1anFragments.empty() || !xyFragments.empty()) throw BadSize{};
 
-   const int RANGE{5};
+   const int RANGE{4};
    Rand_int rnd{-RANGE, RANGE};
 
    // Create recurrence relation.
    std::vector<std::string> variableNames{"a0", "a1", "an", "x", "y"};
-   std::vector<std::string> variableValues;
+   std::vector<std::string> variableValues(variableNames.size()); // {"","","","",""}
    
-   int value{rnd()};
-   while (variableValues.size() < variableNames.size()) {
-      while (value == 0) value = rnd();
-      variableValues.push_back(std::to_string(value));
-      value = rnd();
-   }
+   // Not-so-random fixing of values to avoid repeating series
+   int a0, x, value{rnd()};
+   while (value == 0) value = rnd();
+   a0 = value;
+   while (value == 0 || std::abs(value) == std::abs(a0)) value = rnd();
+   x = signum(a0) * std::abs(value);
+   variableValues.at(0) = std::to_string(a0);
+   variableValues.at(1) = std::to_string(-x);
+   variableValues.at(2) = std::to_string(-x);
+   variableValues.at(3) = std::to_string(x);
+   variableValues.at(4) = std::to_string(-a0);
 
-   // int a0 = 3, a1 = -1, an = 0;
    // int x = 1, y = -3;
    std::vector<Name*> varNamePtrs;
    std::vector<NumberLiteral*> varValPtrs;
@@ -894,12 +903,13 @@ void printA3(JavaPrinter* myPrinter, const std::string& studentNumber)
    Boilerplate* myProgram{createBoilerPlate("se2s03", "A3", myBlock,
          "Rec", recParams, Type::INT)};
    writeToFile(se2s03Path, "A3.java", myPrinter, myProgram);
+   printA3Tests(myPrinter, myProgram, "A3", "Rec", "A3Test", studentPath);
    if (myProgram) delete myProgram;
 }
 
 //------------------------------------------------------------------------------------
 
-void printTests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
+void printA1A2Tests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
       const std::string& className, const std::string& methodName, 
       const std::string& name, boost::filesystem::path studentPath)
 {
@@ -918,6 +928,34 @@ void printTests(JavaPrinter* myPrinter, Boilerplate* myProgram,
          randomArgs.push_back(rnd());
          outFileStream << randomArgs.back() << ", ";
       }
+      ResultFinder myFinder{randomArgs, params};
+      myProgram->accept(&myFinder);
+      tester->addAssert(new AssertStatement{methodName, randomArgs, 
+            std::stoi(myFinder.getResult())});
+      outFileStream << myFinder.getResult() << std::endl;
+   }
+   std::string fileName = name + ".java";
+   writeToFile(studentPath, fileName, myPrinter, tester);
+   if (tester) delete tester;
+}
+
+//------------------------------------------------------------------------------------
+
+void printA3Tests(JavaPrinter* myPrinter, Boilerplate* myProgram,
+      const std::string& className, const std::string& methodName,
+      const std::string& name, boost::filesystem::path studentPath)
+{
+   const unsigned NUMBER_TESTS{18};
+   std::vector<std::string> params{"n"};
+   TesterBoilerplate* tester{new TesterBoilerplate{"se2s03", className, methodName,
+      name}};
+   std::string csvFileName{className + ".csv"};
+   boost::filesystem::path csvPath{studentPath / csvFileName};
+   std::ofstream outFileStream{csvPath.c_str()};
+   std::vector<int> randomArgs{0}; // "random"
+   for (unsigned i=1; i <= NUMBER_TESTS; ++i) {
+      outFileStream << i << ", ";
+      randomArgs.front() = i; 
       ResultFinder myFinder{randomArgs, params};
       myProgram->accept(&myFinder);
       tester->addAssert(new AssertStatement{methodName, randomArgs, 
