@@ -3,7 +3,8 @@
 
 CXXFLAGS = -std=c++11 -Wall -pedantic
 CXX = g++
-SOURCES = test_print_AST.cpp AST.cpp
+SOURCES = test_print_AST.cpp AST.cpp JavaPrinter.cpp ResultFinder.cpp \
+			 JavaScriptPrinter.cpp
 OBJS = ${SOURCES:.cpp=.o}
 TARGETS = test_print_AST
 LINK = -lboost_filesystem -lboost_system

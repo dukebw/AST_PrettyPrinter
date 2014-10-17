@@ -52,6 +52,45 @@ std::string postfixOpToString(const PostfixOperator postfixOperator)
 
 //------------------------------------------------------------------------------------
 
+std::string infixOpToStringJs(const InfixOperator infixOperator)
+{
+   switch (infixOperator) {
+      case InfixOperator::LESS_EQUALS:
+         return "<=";
+      case InfixOperator::EQUALS:
+         return "===";
+      case InfixOperator::PLUS:
+         return "+";
+      case InfixOperator::TIMES:
+         return "*";
+      case InfixOperator::ASSIGNMENT:
+         return "=";
+      default:
+         return "_ERROR_";
+   }
+}
+
+//------------------------------------------------------------------------------------
+
+void Printer::printIndents() const
+{
+   for (int i=0; i<m_indents; ++i)
+      *m_os << '\t';
+}
+
+//------------------------------------------------------------------------------------
+
+void Printer::printIntVector(const std::vector<int>& v) const
+{
+   if (v.empty()) return;
+   if (v.size() > 1)
+      for (int i=0; i < static_cast<int>(v.size())-1; ++i)
+         *m_os << v.at(i) << ',';
+   *m_os << v.back();
+}
+
+//------------------------------------------------------------------------------------
+
 TesterBoilerplate::~TesterBoilerplate()
 { 
    for (AssertStatement* as : m_asserts) if (as) delete as; 
@@ -147,438 +186,22 @@ void InfixExpression::setRightOperand(Expression* expression)
 
 //------------------------------------------------------------------------------------
 
-void JavaPrinter::visit(TesterBoilerplate* tester)
-{  // Temporary fix
-   *m_os << "import static org.junit.Assert.*;" << std::endl;
-   *m_os << "import org.junit.BeforeClass;" << std::endl;
-   *m_os << "import org.junit.Test;" << std::endl;
-   *m_os << "import " << tester->getPackageName() << '.' << tester->getClassName()
-      << ';' << std::endl;
-   *m_os << "public class " << tester->getClassName() << " {" << std::endl;
-   incrementIndents();
-   printIndents();
-   *m_os << "private static " << tester->getClassName() << " tester;" << std::endl;
-   printIndents();
-   *m_os << "@BeforeClass" << std::endl;
-   printIndents();
-   *m_os << "public static void setUp() {" << std::endl;
-   incrementIndents();
-   printIndents();
-   *m_os << "tester = new " << tester->getClassName() << "();" << std::endl;
-   decrementIndents();
-   printIndents();
-   *m_os << '}' << std::endl;
-   printIndents();
-   *m_os << "@Test" << std::endl;
-   printIndents();
-   *m_os << "public void " << tester->getMethodName() << "Test() {" << std::endl;
-   incrementIndents();
-   for (AssertStatement* as : tester->getAsserts()) {
-      printIndents();
-      as->accept(this);
-   }
-   decrementIndents();
-   printIndents();
-   *m_os << '}' << std::endl;
-   decrementIndents();
-   printIndents();
-   *m_os << '}' << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(Boilerplate* boilerplate)
-{
-   printIndents();
-   *m_os << "package " << boilerplate->getName(0) << ';' << std::endl;
-   printIndents();
-   *m_os << "public class " << boilerplate->getName(1) << " {" << std::endl;
-   incrementIndents();
-   for (Declaration* d : boilerplate->getBodyDeclarations())
-      d->accept(this);   
-
-   decrementIndents();
-   *m_os << '}' << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(MethodDeclaration* methodDeclaration)
-{
-   printIndents();
-   *m_os << "public " << typeToString(methodDeclaration->getReturnType()) << ' '
-      << methodDeclaration->getName() << '(';
-   
-   // If statement formats argument list so it's (int x, int y, char z, ...),
-   // or "()" if there are no arguments
-   if (methodDeclaration->getParamList().size() > 0) {
-      using size_type = std::vector<Parameter>::size_type;
-      for (size_type i = 0; i<methodDeclaration->getParamList().size()-1; ++i) {
-            const Parameter& p = methodDeclaration->getParamList().at(i);
-            *m_os << typeToString(p.type) << ' ' << p.name << ", ";
-      }
-
-      const Parameter& p = methodDeclaration->getParamList().back();
-      *m_os << typeToString(p.type) << ' ' << p.name << ") ";
-   }
-   else *m_os << ") ";
-
-   methodDeclaration->getBody()->accept(this);
-   *m_os << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(VarDeclStatement* varDeclStatement)
-{
-   *m_os << typeToString(varDeclStatement->getType()) << ' ';
-   for (unsigned i=0; i<varDeclStatement->getFragments().size(); ++i) {
-      varDeclStatement->getFragments().at(i)->accept(this);
-      if (i != varDeclStatement->getFragments().size() - 1)
-         *m_os << ", ";
-   }
-   *m_os << ';' << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(AssertStatement* assert)
-{
-   *m_os << "assertEquals(\"" << assert->getMethodName() << '(';
-   printIntVector(assert->getParameters());
-   *m_os << ") must be " << assert->getResult() << "\", " << assert->getResult() << 
-      ", tester." << assert->getMethodName() << '(';
-   printIntVector(assert->getParameters());
-   *m_os << "));" << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(Block* block)
-{
-   *m_os << '{' << std::endl;
-
-   incrementIndents();
-   // Print all the statements in the block (if any).
-   // As of now all Indent printing is done by visiting Block.
-   // If, for example, a thenStatement* or elseStatement* belonging to an 
-   // ifStatement happen to not be blocks, then those statements are printed on
-   // the same line as the "if (expression)" or "else", respectively.
-   for (Statement* statement : block->getStatements()) {
-      printIndents();
-      statement->accept(this);
-   }
-   decrementIndents();
-
-   printIndents();
-   *m_os << '}';
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(ReturnStatement* returnStatement)
-{
-   *m_os << "return ";
-   returnStatement->getExpression()->accept(this);
-   *m_os << ';' << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(AssignmentStatement* assignmentStatement)
-{ 
-   assignmentStatement->getName()->accept(this);
-   *m_os << " = ";
-   assignmentStatement->getExpression()->accept(this);
-   *m_os << ';' << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(IfStatement* ifStatement)
-{
-   *m_os << "if (";
-   ifStatement->getExpression()->accept(this); // print expression
-   *m_os << ") ";
-   ifStatement->getThenStatement()->accept(this);
-   
-   if (ifStatement->getElseStatement()) {
-      *m_os << " else ";
-      ifStatement->getElseStatement()->accept(this);
-      *m_os << std::endl;
-   }
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(ForStatement* forStatement)
-{
-   *m_os << "for (";
-   if (!forStatement->getInitializers().empty())
-      *m_os << typeToString(forStatement->getInitializers().at(0)->getType()) << ' ';
-   for (Expression* e : forStatement->getInitializers()) e->accept(this);
-   *m_os << "; ";
-   forStatement->getExpression()->accept(this);
-   *m_os << "; ";
-   for (Expression* e : forStatement->getUpdaters()) e->accept(this);
-   *m_os << ") ";
-   forStatement->getBody()->accept(this);
-   *m_os << std::endl;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(BooleanLiteral* booleanLiteral)
-{
-   if (booleanLiteral->booleanValue() == true)
-      *m_os << "true";
-   else *m_os << "false";
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(NumberLiteral* numberLiteral)
-{
-   std::string token{numberLiteral->getToken()};
-   *m_os << token;
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(InfixExpression* infixExpression)
-{
-   infixExpression->getLeftOperand()->accept(this);
-   *m_os << ' ' << infixOpToString(infixExpression->getOperator()) << ' ';
-   infixExpression->getRightOperand()->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(PostfixExpression* postfixExpression)
-{
-   postfixExpression->getLeftOperand()->accept(this);
-   *m_os << postfixOpToString(postfixExpression->getOperator());
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::visit(VarDeclFragment* varDeclFragment)
-{
-   varDeclFragment->getLeftOperand()->accept(this);
-   *m_os << " = ";
-   varDeclFragment->getRightOperand()->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::printIndents() const
-{
-   for (int i=0; i<m_indents; ++i)
-      *m_os << '\t';
-}
-
-//------------------------------------------------------------------------------------
-
-void JavaPrinter::printIntVector(const std::vector<int>& v) const
-{
-   if (v.empty()) return;
-   if (v.size() > 1)
-      for (int i=0; i < static_cast<int>(v.size())-1; ++i)
-         *m_os << v.at(i) << ',';
-   *m_os << v.back();
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(Boilerplate* boilerplate)
-{
-   for (Declaration* d : boilerplate->getBodyDeclarations())
-      d->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(MethodDeclaration* methodDeclaration)
-{
-   methodDeclaration->getBody()->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(VarDeclStatement* varDeclStatement)
-{
-   for (VarDeclFragment* vdf : varDeclStatement->getFragments())
-      vdf->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(Block* block)
-{
-   for (Statement* s : block->getStatements())
-      s->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(ReturnStatement* returnStatement)
-{
-   returnStatement->getExpression()->accept(this);
-   m_res = std::to_string(m_compareVal);
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(AssignmentStatement* assignmentStatement)
-{
-   assignmentStatement->getName()->accept(this);
-   // Check that we're assigning to a variable already in the symbol table:
-   auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName);
-   if (result == m_inNames.end()) throw BadArgument{};
-
-   // Save the to-be-assigned-to name
-   std::string assignTo{m_compareName};
-   // Evaluate the right-hand expression:
-   assignmentStatement->getExpression()->accept(this);
-   for (unsigned i=0; i<m_inNames.size(); ++i)
-      if (m_inNames.at(i) == assignTo)
-         m_in.at(i) = m_compareVal;
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(IfStatement* ifStatement)
-{
-   ifStatement->getExpression()->accept(this);
-   if (m_compare)
-      ifStatement->getThenStatement()->accept(this);
-   else if (ifStatement->getElseStatement())
-      ifStatement->getElseStatement()->accept(this);
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(ForStatement* forStatement)
-{
-   for (Expression* e : forStatement->getInitializers())
-      e->accept(this);
-   forStatement->getExpression()->accept(this);
-   while (m_compare) {
-      forStatement->getBody()->accept(this);
-      for (Expression* e : forStatement->getUpdaters())
-         e->accept(this);
-      forStatement->getExpression()->accept(this);
-   }
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(Name* name)
-{
-   m_compareName = name->getName();
-   auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName); 
-   if (result != m_inNames.end()) {
-      for (unsigned i=0; i<m_inNames.size(); ++i)
-         if (m_inNames.at(i) == m_compareName)
-            m_compareVal = m_in.at(i);
-   }
-}
-   
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(BooleanLiteral* booleanLiteral)
-{
-   m_compare = true;
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(NumberLiteral* numberLiteral)
-{
-   m_compareVal = std::stoi(numberLiteral->getToken());
-   m_res = numberLiteral->getToken();
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(InfixExpression* infixExpression)
-{
-   // Sets m_compareVal to the result of evaluating the InfixExpression (if it's
-   // an integer expression), or m_compare to the result if it's a boolean expression
-   infixExpression->getLeftOperand()->accept(this);
-   m_op = infixExpression->getOperator();
-   int tempVal{m_compareVal};
-   InfixOperator tempOp{m_op};
-   infixExpression->getRightOperand()->accept(this);
-   switch (tempOp) {
-      case InfixOperator::LESS_EQUALS:
-         if (tempVal <= m_compareVal) m_compare = true;
-         else m_compare = false;
-         break;
-      case InfixOperator::EQUALS:
-         if (tempVal == m_compareVal) m_compare = true;
-         else m_compare = false;
-         break;
-      case InfixOperator::PLUS:
-         m_compareVal += tempVal;
-         break;
-      case InfixOperator::TIMES:
-         m_compareVal *= tempVal;
-         break;
-      default:
-         throw BadArgument{};
-   }
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(PostfixExpression* postfixExpression)
-{
-   // A bit of a hack: only works with variable++ or variable--
-   postfixExpression->getLeftOperand()->accept(this);
-   for (unsigned i=0; i<m_inNames.size(); ++i)
-      if (m_inNames.at(i) == m_compareName)
-         switch(postfixExpression->getOperator()) {
-            case PostfixOperator::INCREMENT:
-               m_in.at(i) = ++m_compareVal;
-               break;
-            case PostfixOperator::DECREMENT:
-               m_in.at(i) = --m_compareVal;
-               break;
-            default:
-               throw BadArgument{};
-               break;
-         }
-}
-
-//------------------------------------------------------------------------------------
-
-void ResultFinder::visit(VarDeclFragment* varDeclFragment)
-{
-   varDeclFragment->getLeftOperand()->accept(this);
-   auto result = std::find(m_inNames.begin(), m_inNames.end(), m_compareName);
-   if (result != m_inNames.end()) throw BadArgument{};
-   m_inNames.push_back(m_compareName);
-   varDeclFragment->getRightOperand()->accept(this);
-   m_in.push_back(m_compareVal);
-}
-
-//------------------------------------------------------------------------------------
-
-void makeDirectories(const std::string& studentNumber)
+void makeDirectories(const std::string& studentNumber, const std::string& language)
 {
    namespace bfs = boost::filesystem;
    // create_directory doesn't throw an error if directory creation fails due to
    // that directory already existing.
    bfs::create_directory(studentNumber);
    bfs::path studentNumberPath{studentNumber};
-   bfs::create_directory(studentNumberPath / "se2s03");
+   bfs::create_directory(studentNumberPath / language);
+   bfs::path languagePath{studentNumberPath / language};
+   bfs::create_directory(languagePath / "se2s03"); 
 }
 
 //------------------------------------------------------------------------------------
 
 void writeToFile(const boost::filesystem::path& path, const std::string& fileName,
-      JavaPrinter* printer, ASTNode* node)
+      Printer* printer, ASTNode* node)
 {
    // Writes to a file in path named fileName
    namespace bfs = boost::filesystem;
@@ -759,12 +382,41 @@ void fillRandomVector(const unsigned numberToFill, const int range,
 
 //------------------------------------------------------------------------------------
 
-void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber)
+void printAssert_js(const boost::filesystem::path& assertPath)
+{
+   namespace bfs = boost::filesystem;
+   if (!bfs::exists(assertPath)) throw BadPath{};
+
+   bfs::path filePath{bfs::path(assertPath / "assert.js")};
+   if (!bfs::exists(filePath)) {
+      std::ofstream outFileStream{filePath.c_str()};
+      outFileStream << "function assert(condition, message) {" << std::endl;
+      outFileStream << "\tif (!condition) {" << std::endl;
+      outFileStream << "\t\tthrow {" << std::endl;
+      outFileStream << "\t\t\tname: 'AssertError'," << std::endl;
+      outFileStream << "\t\t\tmessage: message" << std::endl;
+      outFileStream << "\t\t};" << std::endl;
+      outFileStream << "\t}" << std::endl;
+      outFileStream << '}' << std::endl;
+   }
+}
+
+//------------------------------------------------------------------------------------
+
+void printA1A2(Printer* myPrinter, const std::string& studentNumber, 
+      const std::string& language)
 {
       namespace bfs = boost::filesystem;
-      makeDirectories(studentNumber);
+      makeDirectories(studentNumber, language);
       bfs::path studentPath{studentNumber};
-      bfs::path se2s03Path{studentPath / "se2s03"};
+      bfs::path languagePath{studentPath / language};
+      bfs::path se2s03Path{languagePath / "se2s03"};
+      std::string extension;
+      if (language == "Java") extension = ".java";
+      else if (language == "JavaScript") extension = ".js";
+
+      // Print small assert.js program to get asserts in JavaScript
+      if (language == "JavaScript") printAssert_js(languagePath);
 
       // Create if-else tree. First create return blocks:
       std::vector<std::string> returnValues1, testNames1, testNumbers1;
@@ -783,13 +435,13 @@ void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber)
          Parameter{Type::INT, "u"}, Parameter{Type::INT, "w"}};
       Boilerplate* myProgram1{createBoilerPlate("se2s03", "A1", myBlock1, 
             "cases", casesParams, Type::INT)};
-      Boilerplate* myProgram2{createBoilerPlate("se2s03", "A1", myBlock2, 
+      Boilerplate* myProgram2{createBoilerPlate("se2s03", "A2", myBlock2, 
             "cases", casesParams, Type::INT)};
 
-      writeToFile(se2s03Path, "A1.java", myPrinter, myProgram1);
-      printA1A2Tests(myPrinter, myProgram1, "A1", "cases", "A1Test", studentPath);
-      writeToFile(se2s03Path, "A2.java", myPrinter, myProgram2);
-      printA1A2Tests(myPrinter, myProgram2, "A2", "cases", "A2Test", studentPath);
+      writeToFile(se2s03Path, "A1" + extension, myPrinter, myProgram1);
+      printA1A2Tests(myPrinter, myProgram1, "A1", "cases", "A1Test", languagePath);
+      writeToFile(se2s03Path, "A2" + extension, myPrinter, myProgram2);
+      printA1A2Tests(myPrinter, myProgram2, "A2", "cases", "A2Test", languagePath);
       if (myProgram1) delete myProgram1;
       if (myProgram2) delete myProgram2;
 }
@@ -801,7 +453,7 @@ void createInitialization(std::vector<VarDeclFragment*>& a0a1anFragments,
 {
    if (!a0a1anFragments.empty() || !xyFragments.empty()) throw BadSize{};
 
-   const int RANGE{4};
+   const int RANGE{3};
    Rand_int rnd{-RANGE, RANGE};
 
    // Create recurrence relation.
@@ -890,11 +542,16 @@ void createRecurrenceBlock(Block* myBlock)
 
 //------------------------------------------------------------------------------------
 
-void printA3(JavaPrinter* myPrinter, const std::string& studentNumber)
+void printA3(Printer* myPrinter, const std::string& studentNumber,
+      const std::string& language)
 {
    namespace bfs = boost::filesystem;
    bfs::path studentPath{studentNumber};
-   bfs::path se2s03Path{studentPath / "se2s03"};
+   bfs::path languagePath{studentPath / language};
+   bfs::path se2s03Path{languagePath / "se2s03"};
+   std::string extension;
+   if (language == "Java") extension = ".java";
+   else if (language == "JavaScript") extension = ".js";
 
    Block* myBlock{new Block};
    createRecurrenceBlock(myBlock);
@@ -902,14 +559,14 @@ void printA3(JavaPrinter* myPrinter, const std::string& studentNumber)
    std::vector<Parameter> recParams{Parameter{Type::INT, "n"}};
    Boilerplate* myProgram{createBoilerPlate("se2s03", "A3", myBlock,
          "Rec", recParams, Type::INT)};
-   writeToFile(se2s03Path, "A3.java", myPrinter, myProgram);
-   printA3Tests(myPrinter, myProgram, "A3", "Rec", "A3Test", studentPath);
+   writeToFile(se2s03Path, "A3" + extension, myPrinter, myProgram);
+   printA3Tests(myPrinter, myProgram, "A3", "Rec", "A3Test", languagePath);
    if (myProgram) delete myProgram;
 }
 
 //------------------------------------------------------------------------------------
 
-void printA1A2Tests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
+void printA1A2Tests(Printer* myPrinter, Boilerplate* myProgram, 
       const std::string& className, const std::string& methodName, 
       const std::string& name, boost::filesystem::path studentPath)
 {
@@ -919,9 +576,19 @@ void printA1A2Tests(JavaPrinter* myPrinter, Boilerplate* myProgram,
    std::vector<std::string> params{"v", "u", "w"};
    TesterBoilerplate* tester{new TesterBoilerplate{"se2s03", className, methodName,
       name}};
+   std::string languageName;
+   std::string tempPathName{studentPath.c_str()};
+   for (unsigned i=8; i<tempPathName.size(); ++i) 
+      languageName.push_back(tempPathName.at(i));
+
+   std::string extension;
+   if (languageName == "Java") extension = ".java";
+   else if (languageName == "JavaScript") extension = ".js";
+
    std::string csvFileName{className + ".csv"};
    boost::filesystem::path csvPath{studentPath / csvFileName};
    std::ofstream outFileStream{csvPath.c_str()};
+
    for (unsigned i=0; i<NUMBER_TESTS; ++i) {
       std::vector<int> randomArgs;
       for (unsigned j=0; j<params.size(); ++j) {
@@ -934,14 +601,14 @@ void printA1A2Tests(JavaPrinter* myPrinter, Boilerplate* myProgram,
             std::stoi(myFinder.getResult())});
       outFileStream << myFinder.getResult() << std::endl;
    }
-   std::string fileName = name + ".java";
+   std::string fileName = name + extension;
    writeToFile(studentPath, fileName, myPrinter, tester);
    if (tester) delete tester;
 }
 
 //------------------------------------------------------------------------------------
 
-void printA3Tests(JavaPrinter* myPrinter, Boilerplate* myProgram,
+void printA3Tests(Printer* myPrinter, Boilerplate* myProgram,
       const std::string& className, const std::string& methodName,
       const std::string& name, boost::filesystem::path studentPath)
 {
@@ -949,6 +616,16 @@ void printA3Tests(JavaPrinter* myPrinter, Boilerplate* myProgram,
    std::vector<std::string> params{"n"};
    TesterBoilerplate* tester{new TesterBoilerplate{"se2s03", className, methodName,
       name}};
+
+   std::string languageName;
+   std::string tempPathName{studentPath.c_str()};
+   for (unsigned i=8; i<tempPathName.size(); ++i) 
+      languageName.push_back(tempPathName.at(i));
+
+   std::string extension;
+   if (languageName == "Java") extension = ".java";
+   else if (languageName == "JavaScript") extension = ".js";
+
    std::string csvFileName{className + ".csv"};
    boost::filesystem::path csvPath{studentPath / csvFileName};
    std::ofstream outFileStream{csvPath.c_str()};
@@ -962,7 +639,7 @@ void printA3Tests(JavaPrinter* myPrinter, Boilerplate* myProgram,
             std::stoi(myFinder.getResult())});
       outFileStream << myFinder.getResult() << std::endl;
    }
-   std::string fileName = name + ".java";
+   std::string fileName = name + extension;
    writeToFile(studentPath, fileName, myPrinter, tester);
    if (tester) delete tester;
 }

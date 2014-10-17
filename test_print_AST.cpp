@@ -7,10 +7,14 @@ try {
    readStudentNumbers(studentNumberFile, studentNumbers);
 
    // visitor
-   JavaPrinter myPrinter;
+   JavaPrinter myJavaPrinter;
+   JavaScriptPrinter myJsPrinter;
    for (const std::string& s : studentNumbers) {
-      printA1A2(&myPrinter, s);
-      printA3(&myPrinter, s);
+      printA1A2(&myJavaPrinter, s, "Java");
+      printA3(&myJavaPrinter, s, "Java");
+
+      printA1A2(&myJsPrinter, s, "JavaScript");
+      printA3(&myJsPrinter, s, "JavaScript");
    }
 }
 catch (BadArgument) {

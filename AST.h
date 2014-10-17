@@ -67,6 +67,10 @@ std::string postfixOpToString(const PostfixOperator postfixOperator);
 
 //------------------------------------------------------------------------------------
 
+std::string infixOpToStringJs(const InfixOperator infixOperator);
+
+//------------------------------------------------------------------------------------
+
 // For declaring functions: contains the type and name.
 struct Parameter {
    Type type;
@@ -119,6 +123,37 @@ public:
 
 //------------------------------------------------------------------------------------
 
+struct Printer : ASTVisitor {
+   virtual void visit(TesterBoilerplate* tester) = 0;
+   virtual void visit(Boilerplate* boilerplate) = 0;
+   virtual void visit(MethodDeclaration* methodDeclaration) = 0;
+   virtual void visit(VarDeclStatement* varDeclStatement) = 0;
+   virtual void visit(AssertStatement* assert) = 0;
+   virtual void visit(Block* block) = 0;
+   virtual void visit(ReturnStatement* returnStatement) = 0;
+   virtual void visit(AssignmentStatement* assignmentStatement) = 0;
+   virtual void visit(IfStatement* ifStatement) = 0;
+   virtual void visit(ForStatement* ForStatement) = 0;
+   virtual void visit(Name* name) = 0;
+   virtual void visit(BooleanLiteral* booleanLiteral) = 0;
+   virtual void visit(NumberLiteral* numberLiteral) = 0;
+   virtual void visit(InfixExpression* infixExpression) = 0;
+   virtual void visit(PostfixExpression* postfixExpression) = 0;
+   virtual void visit(VarDeclFragment* varDeclFragment) = 0;
+
+   void setOutStream(std::ostream& os) { m_os = &os; }
+   void printIndents() const;
+   void printIntVector(const std::vector<int>& v) const;
+   void incrementIndents() { ++m_indents; }
+   void decrementIndents() { --m_indents; }
+protected:
+   std::ostream* m_os = &std::cout;
+private:
+   int m_indents{0};
+};
+
+//------------------------------------------------------------------------------------
+
 class ASTNode {
 public:
    virtual void accept(ASTVisitor* visitor) = 0;
@@ -149,6 +184,7 @@ struct TesterBoilerplate : ASTNode {
 
    void accept(ASTVisitor* visitor) { visitor->visit(this); }
 
+   const std::string& getName() const { return m_name; }
    const std::string& getPackageName() const { return m_packageName; }
    const std::string& getClassName() const { return m_className; }
    const std::string& getMethodName() const { return m_methodName; }
@@ -505,9 +541,9 @@ private:
 
 //------------------------------------------------------------------------------------
 
-struct JavaPrinter : ASTVisitor {
+struct JavaPrinter : Printer {
    void visit(TesterBoilerplate* tester);
-   void visit(Boilerplate* classDeclaration);
+   void visit(Boilerplate* boilerplate);
    void visit(MethodDeclaration* methodDeclaration);
    void visit(VarDeclStatement* varDeclStatement);
    void visit(AssertStatement* assert);
@@ -522,15 +558,27 @@ struct JavaPrinter : ASTVisitor {
    void visit(InfixExpression* infixExpression);
    void visit(PostfixExpression* postfixExpression);
    void visit(VarDeclFragment* varDeclFragment);
+};
 
-   void setOutStream(std::ostream& os) { m_os = &os; }
-   void printIndents() const;
-   void printIntVector(const std::vector<int>& v) const;
-   void incrementIndents() { ++m_indents; }
-   void decrementIndents() { --m_indents; }
-private:
-   int m_indents{0};
-   std::ostream* m_os = &std::cout;
+//------------------------------------------------------------------------------------
+
+struct JavaScriptPrinter : Printer {
+   void visit(TesterBoilerplate* tester);
+   void visit(Boilerplate* boilerplate);
+   void visit(MethodDeclaration* methodDeclaration);
+   void visit(VarDeclStatement* varDeclStatement);
+   void visit(AssertStatement* assert);
+   void visit(Block* block);
+   void visit(ReturnStatement* returnStatement);
+   void visit(AssignmentStatement* assignmentStatement);
+   void visit(IfStatement* ifStatement);
+   void visit(ForStatement* forStatement);
+   void visit(Name* name) { *m_os << name->getName(); }
+   void visit(BooleanLiteral* booleanLiteral);
+   void visit(NumberLiteral* numberLiteral);
+   void visit(InfixExpression* infixExpression);
+   void visit(PostfixExpression* postfixExpression);
+   void visit(VarDeclFragment* varDeclFragment);
 };
 
 //------------------------------------------------------------------------------------
@@ -577,16 +625,14 @@ private:
 //------------------------------------------------------------------------------------
 
 // To do: include error checking for successful directory creation.
-void makeDirectories(const std::string& studentNumber);
+void makeDirectories(const std::string& studentNumber, const std::string& language);
 
 //------------------------------------------------------------------------------------
 
 // Specifically prints the output of node->accept(printer) (i.e. printer->visit(node)) 
 // to the file "fileName", which is created 
-// Also at some point JavaPrinter* can be convered to some sort of base Printer*
-// class, and then this function can be used to pretty-print into different languages.
 void writeToFile(const boost::filesystem::path& path, const std::string& fileName, 
-      JavaPrinter* printer, ASTNode* node);
+      Printer* printer, ASTNode* node);
 
 //------------------------------------------------------------------------------------
 
@@ -642,7 +688,8 @@ void fillRandomVector(const unsigned numberToFill, const int range,
 
 //------------------------------------------------------------------------------------
 
-void printA1A2(JavaPrinter* myPrinter, const std::string& studentNumber);
+void printA1A2(Printer* myPrinter, const std::string& studentNumber, 
+      const std::string& language);
 
 //------------------------------------------------------------------------------------
 
@@ -659,16 +706,17 @@ void createRecurrenceBlock(Block* myBlock);
 
 //------------------------------------------------------------------------------------
 
-void printA3(JavaPrinter* myPrinter, const std::string& studentNumber);
+void printA3(Printer* myPrinter, const std::string& studentNumber,
+      const std::string& language);
 
 //------------------------------------------------------------------------------------
 
-void printA1A2Tests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
+void printA1A2Tests(Printer* myPrinter, Boilerplate* myProgram, 
       const std::string& className, const std::string& methodName, 
       const std::string& name, boost::filesystem::path studentPath);
 
 //------------------------------------------------------------------------------------
 
-void printA3Tests(JavaPrinter* myPrinter, Boilerplate* myProgram, 
+void printA3Tests(Printer* myPrinter, Boilerplate* myProgram, 
       const std::string& className, const std::string& methodName,
       const std::string& name, boost::filesystem::path studentPath);

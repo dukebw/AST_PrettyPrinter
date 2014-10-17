@@ -1,6 +1,8 @@
-Right now the assignment generator assumes that the student numbers are stored in a file called "STUDENT_NUMBERS".
+Printing into different languages (Java, JavaScript, Haskell and Scheme) also generates new randomized sets of data, with the same syntax tree except for different initialization values in the case of A3, and different comparison and return values in the cases of A1 and A2. 
 
-Much apologies: as of yet only A1 and A2 generation is implemented. A3 coming soon! Newest versions can be found at https://github.come/dukebw/AST_PrettyPrinter.
+The generator could easily be modified to print the same data set into all four programming languages by separating the tree-creation from the printA3(), printA1A2() etc. functions.
+
+Right now the assignment generator assumes that the student numbers are stored in a file called "STUDENT_NUMBERS".
 
 To install Boost (on Unix): 
 Option 1: Use your package manager (version of Boost may be slightly old).
