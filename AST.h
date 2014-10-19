@@ -71,6 +71,14 @@ std::string infixOpToStringJs(const InfixOperator infixOperator);
 
 //------------------------------------------------------------------------------------
 
+std::string infixOpToStringScm(const InfixOperator infixOperator);
+
+//------------------------------------------------------------------------------------
+
+std::string postfixOpToStringScm(const PostfixOperator postfixOperator);
+
+//------------------------------------------------------------------------------------
+
 // For declaring functions: contains the type and name.
 struct Parameter {
    Type type;
@@ -124,6 +132,8 @@ public:
 //------------------------------------------------------------------------------------
 
 struct Printer : ASTVisitor {
+   Printer(const std::string& indentType) :m_indentType{indentType} {}
+
    virtual void visit(TesterBoilerplate* tester) = 0;
    virtual void visit(Boilerplate* boilerplate) = 0;
    virtual void visit(MethodDeclaration* methodDeclaration) = 0;
@@ -146,8 +156,10 @@ struct Printer : ASTVisitor {
    void printIntVector(const std::vector<int>& v) const;
    void incrementIndents() { ++m_indents; }
    void decrementIndents() { --m_indents; }
+   void setIndents(int i) { m_indents = i; }
 protected:
    std::ostream* m_os = &std::cout;
+   std::string m_indentType;
 private:
    int m_indents{0};
 };
@@ -542,6 +554,8 @@ private:
 //------------------------------------------------------------------------------------
 
 struct JavaPrinter : Printer {
+   JavaPrinter() :Printer{"\t"} {}
+
    void visit(TesterBoilerplate* tester);
    void visit(Boilerplate* boilerplate);
    void visit(MethodDeclaration* methodDeclaration);
@@ -563,6 +577,57 @@ struct JavaPrinter : Printer {
 //------------------------------------------------------------------------------------
 
 struct JavaScriptPrinter : Printer {
+   JavaScriptPrinter() :Printer{"\t"} {}
+
+   void visit(TesterBoilerplate* tester);
+   void visit(Boilerplate* boilerplate);
+   void visit(MethodDeclaration* methodDeclaration);
+   void visit(VarDeclStatement* varDeclStatement);
+   void visit(AssertStatement* assert);
+   void visit(Block* block);
+   void visit(ReturnStatement* returnStatement);
+   void visit(AssignmentStatement* assignmentStatement);
+   void visit(IfStatement* ifStatement);
+   void visit(ForStatement* forStatement);
+   void visit(Name* name) { *m_os << name->getName(); }
+   void visit(BooleanLiteral* booleanLiteral);
+   void visit(NumberLiteral* numberLiteral);
+   void visit(InfixExpression* infixExpression);
+   void visit(PostfixExpression* postfixExpression);
+   void visit(VarDeclFragment* varDeclFragment);
+};
+
+//------------------------------------------------------------------------------------
+
+// Class to deal with missing brackets, which occur because the AST here is 
+// constructed with lists of statements in a block, when really each 
+// statement in the same block should probably be a child of its subsequent statement.
+struct MissingBracket : Printer {
+   MissingBracket() :Printer{"  "} {}
+
+   void visit(TesterBoilerplate* tester) {}
+   void visit(Boilerplate* boilerplate) {}
+   void visit(MethodDeclaration* methodDeclaration) {}
+   void visit(VarDeclStatement* varDeclStatement) { *m_os << ')'; }
+   void visit(AssertStatement* assert) {}
+   void visit(Block* block) {}
+   void visit(ReturnStatement* returnStatement) {}
+   void visit(AssignmentStatement* assignmentStatement) {}
+   void visit(IfStatement* ifStatement);
+   void visit(ForStatement* forStatement) {}
+   void visit(Name* name) {}
+   void visit(BooleanLiteral* booleanLiteral) {}
+   void visit(NumberLiteral* numberLiteral) {}
+   void visit(InfixExpression* infixExpression) {}
+   void visit(PostfixExpression* postfixExpression) {}
+   void visit(VarDeclFragment* varDeclFragment) {}
+};
+
+//------------------------------------------------------------------------------------
+
+struct SchemePrinter : Printer {
+   SchemePrinter() :Printer{"  "} {}
+
    void visit(TesterBoilerplate* tester);
    void visit(Boilerplate* boilerplate);
    void visit(MethodDeclaration* methodDeclaration);
@@ -685,6 +750,14 @@ void randomizeTree(std::vector<std::string>& returnValues,
 // in string form ("0", "1", etc.)
 void fillRandomVector(const unsigned numberToFill, const int range, 
       std::vector<std::string>& outputVec, const bool unique = false);
+
+//------------------------------------------------------------------------------------
+
+void printAssert_js(const boost::filesystem::path& assertPath);
+
+//------------------------------------------------------------------------------------
+
+void printAssert_scm(const boost::filesystem::path& assertPath);
 
 //------------------------------------------------------------------------------------
 

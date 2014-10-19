@@ -1,8 +1,15 @@
-Printing into different languages (Java, JavaScript, Haskell and Scheme) also generates new randomized sets of data, with the same syntax tree except for different initialization values in the case of A3, and different comparison and return values in the cases of A1 and A2. 
+Running tests (sets of assert statements):
 
-The generator could easily be modified to print the same data set into all four programming languages by separating the tree-creation from the printA3(), printA1A2() etc. functions.
+Java: Tests can be run in the usual way by compiling everything (e.g. javac A3Test.java) then using JUnit (e.g. java org.junit.runner.JUnitCore A3Test).
 
-Right now the assignment generator assumes that the student numbers are stored in a file called "STUDENT_NUMBERS".
+JavaScript: Use rhino to run the test file (e.g. rhino A3Test.js).
+
+Scheme: Use the Gambit Scheme Interpreter to run the test file (e.g. gsi A1Test.scm).
+
+To install the Gambit Scheme Interpreter (gsi):
+
+Download the latest release from http://gambitscheme.org/wiki/index.php/Main_Page and follow the install instructiosn from the README and INSTALL.txt. 
+Only the interpreter gsi is needed; the compiler (gsc) can be installed as well if desired.
 
 To install Boost (on Unix): 
 Option 1: Use your package manager (version of Boost may be slightly old).
@@ -23,6 +30,8 @@ The function will be an if-else construct in the cases of A1.java and A2.java, a
 
 Many of the comments are as much for my own clarification as for other potential readers of my program.
 
-At this point I realize that by having get() functions that return pointers to my private data members I ruin the encapsulation of the program. In future versions I hope to devise a way to not return pointers to the data members, or to find some way to make the program safer.
+Printing into different languages (Java, JavaScript, Haskell and Scheme) also generates new randomized sets of data, with the same syntax tree except for different initialization values in the case of A3, and different comparison and return values in the cases of A1 and A2. 
 
-Currently indents are implemented with tabs. It may be preferable to switch this with two spaces (which can be done by changing one line in JavaPrinter::printIndents()).
+The generator could easily be modified to print the same data set into all four programming languages by separating the tree-creation from the printA3(), printA1A2() etc. functions.
+
+Right now the assignment generator assumes that the student numbers are stored in a file called "STUDENT_NUMBERS".

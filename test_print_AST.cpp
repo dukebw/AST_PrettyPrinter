@@ -9,12 +9,16 @@ try {
    // visitor
    JavaPrinter myJavaPrinter;
    JavaScriptPrinter myJsPrinter;
+   SchemePrinter myScmPrinter;
    for (const std::string& s : studentNumbers) {
       printA1A2(&myJavaPrinter, s, "Java");
       printA3(&myJavaPrinter, s, "Java");
 
       printA1A2(&myJsPrinter, s, "JavaScript");
       printA3(&myJsPrinter, s, "JavaScript");
+
+      printA1A2(&myScmPrinter, s, "Scheme");
+      printA3(&myScmPrinter, s, "Scheme");
    }
 }
 catch (BadArgument) {

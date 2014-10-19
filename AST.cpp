@@ -72,10 +72,44 @@ std::string infixOpToStringJs(const InfixOperator infixOperator)
 
 //------------------------------------------------------------------------------------
 
+// 3 languages, 3 ways to write equality
+std::string infixOpToStringScm(const InfixOperator infixOperator)
+{
+   switch (infixOperator) {
+      case InfixOperator::LESS_EQUALS:
+         return "<=";
+      case InfixOperator::EQUALS:
+         return "=";
+      case InfixOperator::PLUS:
+         return "+";
+      case InfixOperator::TIMES:
+         return "*";
+      case InfixOperator::ASSIGNMENT:
+         return "=";
+      default:
+         return "_ERROR_";
+   }
+}
+
+//------------------------------------------------------------------------------------
+
+std::string postfixOpToStringScm(const PostfixOperator postfixOperator)
+{
+   switch (postfixOperator) {
+      case PostfixOperator::INCREMENT:
+         return "+";
+      case PostfixOperator::DECREMENT:
+         return "-";
+      default: 
+         return "_ERROR_";
+   }
+}
+//------------------------------------------------------------------------------------
+
 void Printer::printIndents() const
 {
    for (int i=0; i<m_indents; ++i)
-      *m_os << '\t';
+      *m_os << m_indentType;
 }
 
 //------------------------------------------------------------------------------------
@@ -403,6 +437,24 @@ void printAssert_js(const boost::filesystem::path& assertPath)
 
 //------------------------------------------------------------------------------------
 
+void printAssert_scm(const boost::filesystem::path& assertPath)
+{
+   namespace bfs = boost::filesystem;
+   if (!bfs::exists(assertPath)) throw BadPath{};
+
+   bfs::path filePath{bfs::path(assertPath / "assert.scm")};
+   if (!bfs::exists(filePath)) {
+      std::ofstream outFileStream{filePath.c_str()};
+      outFileStream << "(define (assert msg b)" << std::endl 
+         << "\t(if (not b)" << std::endl
+         << "\t\t(begin" << std::endl
+         << "\t\t\t(print msg \"\\n\")" << std::endl
+         << "\t\t\t#f)" << std::endl
+         << "\t\t#t))" << std::endl;
+   }
+}
+//------------------------------------------------------------------------------------
+
 void printA1A2(Printer* myPrinter, const std::string& studentNumber, 
       const std::string& language)
 {
@@ -414,9 +466,11 @@ void printA1A2(Printer* myPrinter, const std::string& studentNumber,
       std::string extension;
       if (language == "Java") extension = ".java";
       else if (language == "JavaScript") extension = ".js";
+      else if (language == "Scheme") extension = ".scm";
 
       // Print small assert.js program to get asserts in JavaScript
       if (language == "JavaScript") printAssert_js(languagePath);
+      if (language == "Scheme") printAssert_scm(languagePath);
 
       // Create if-else tree. First create return blocks:
       std::vector<std::string> returnValues1, testNames1, testNumbers1;
@@ -552,6 +606,7 @@ void printA3(Printer* myPrinter, const std::string& studentNumber,
    std::string extension;
    if (language == "Java") extension = ".java";
    else if (language == "JavaScript") extension = ".js";
+   else if (language == "Scheme") extension = ".scm";
 
    Block* myBlock{new Block};
    createRecurrenceBlock(myBlock);
@@ -584,6 +639,7 @@ void printA1A2Tests(Printer* myPrinter, Boilerplate* myProgram,
    std::string extension;
    if (languageName == "Java") extension = ".java";
    else if (languageName == "JavaScript") extension = ".js";
+   else if (languageName == "Scheme") extension = ".scm";
 
    std::string csvFileName{className + ".csv"};
    boost::filesystem::path csvPath{studentPath / csvFileName};
@@ -625,6 +681,7 @@ void printA3Tests(Printer* myPrinter, Boilerplate* myProgram,
    std::string extension;
    if (languageName == "Java") extension = ".java";
    else if (languageName == "JavaScript") extension = ".js";
+   else if (languageName == "Scheme") extension = ".scm";
 
    std::string csvFileName{className + ".csv"};
    boost::filesystem::path csvPath{studentPath / csvFileName};
