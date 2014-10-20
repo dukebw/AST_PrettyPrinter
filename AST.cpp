@@ -229,7 +229,9 @@ void makeDirectories(const std::string& studentNumber, const std::string& langua
    bfs::path studentNumberPath{studentNumber};
    bfs::create_directory(studentNumberPath / language);
    bfs::path languagePath{studentNumberPath / language};
-   bfs::create_directory(languagePath / "se2s03"); 
+   std::string se2s03;
+   se2s03 = (language == "Haskell") ? "Se2s03" : "se2s03";
+   bfs::create_directory(languagePath / se2s03); 
 }
 
 //------------------------------------------------------------------------------------
@@ -462,11 +464,16 @@ void printA1A2(Printer* myPrinter, const std::string& studentNumber,
       makeDirectories(studentNumber, language);
       bfs::path studentPath{studentNumber};
       bfs::path languagePath{studentPath / language};
-      bfs::path se2s03Path{languagePath / "se2s03"};
+      std::string se2s03, cases1, cases2;
+      se2s03 = (language == "Haskell") ? "Se2s03" : "se2s03";
+      cases1 = (language == "Haskell") ? "Se2s03.A1.cases" : "cases";
+      cases2 = (language == "Haskell") ? "Se2s03.A2.cases" : "cases";
+      bfs::path se2s03Path{languagePath / se2s03};
       std::string extension;
       if (language == "Java") extension = ".java";
       else if (language == "JavaScript") extension = ".js";
       else if (language == "Scheme") extension = ".scm";
+      else if (language == "Haskell") extension = ".hs";
 
       // Print small assert.js program to get asserts in JavaScript
       if (language == "JavaScript") printAssert_js(languagePath);
@@ -487,15 +494,15 @@ void printA1A2(Printer* myPrinter, const std::string& studentNumber,
       // ...
       std::vector<Parameter> casesParams{Parameter{Type::INT, "v"}, 
          Parameter{Type::INT, "u"}, Parameter{Type::INT, "w"}};
-      Boilerplate* myProgram1{createBoilerPlate("se2s03", "A1", myBlock1, 
+      Boilerplate* myProgram1{createBoilerPlate(se2s03, "A1", myBlock1, 
             "cases", casesParams, Type::INT)};
-      Boilerplate* myProgram2{createBoilerPlate("se2s03", "A2", myBlock2, 
+      Boilerplate* myProgram2{createBoilerPlate(se2s03, "A2", myBlock2, 
             "cases", casesParams, Type::INT)};
 
       writeToFile(se2s03Path, "A1" + extension, myPrinter, myProgram1);
-      printA1A2Tests(myPrinter, myProgram1, "A1", "cases", "A1Test", languagePath);
+      printA1A2Tests(myPrinter, myProgram1, "A1", cases1, "A1Test", languagePath);
       writeToFile(se2s03Path, "A2" + extension, myPrinter, myProgram2);
-      printA1A2Tests(myPrinter, myProgram2, "A2", "cases", "A2Test", languagePath);
+      printA1A2Tests(myPrinter, myProgram2, "A2", cases2, "A2Test", languagePath);
       if (myProgram1) delete myProgram1;
       if (myProgram2) delete myProgram2;
 }
@@ -602,20 +609,23 @@ void printA3(Printer* myPrinter, const std::string& studentNumber,
    namespace bfs = boost::filesystem;
    bfs::path studentPath{studentNumber};
    bfs::path languagePath{studentPath / language};
-   bfs::path se2s03Path{languagePath / "se2s03"};
+   std::string se2s03{(language == "Haskell") ? "Se2s03" : "se2s03"};
+   std::string Rec{(language == "Haskell") ? "rec" : "Rec"};
+   bfs::path se2s03Path{languagePath / se2s03};
    std::string extension;
    if (language == "Java") extension = ".java";
    else if (language == "JavaScript") extension = ".js";
    else if (language == "Scheme") extension = ".scm";
+   else if (language == "Haskell") extension = ".hs";
 
    Block* myBlock{new Block};
    createRecurrenceBlock(myBlock);
 
    std::vector<Parameter> recParams{Parameter{Type::INT, "n"}};
-   Boilerplate* myProgram{createBoilerPlate("se2s03", "A3", myBlock,
-         "Rec", recParams, Type::INT)};
+   Boilerplate* myProgram{createBoilerPlate(se2s03, "A3", myBlock,
+         Rec, recParams, Type::INT)};
    writeToFile(se2s03Path, "A3" + extension, myPrinter, myProgram);
-   printA3Tests(myPrinter, myProgram, "A3", "Rec", "A3Test", languagePath);
+   printA3Tests(myPrinter, myProgram, "A3", Rec, "A3Test", languagePath);
    if (myProgram) delete myProgram;
 }
 
@@ -629,17 +639,21 @@ void printA1A2Tests(Printer* myPrinter, Boilerplate* myProgram,
    const int TEST_RANGE{100};
    Rand_int rnd{-TEST_RANGE, TEST_RANGE}; // test values in [-100, 100]
    std::vector<std::string> params{"v", "u", "w"};
-   TesterBoilerplate* tester{new TesterBoilerplate{"se2s03", className, methodName,
-      name}};
    std::string languageName;
    std::string tempPathName{studentPath.c_str()};
    for (unsigned i=8; i<tempPathName.size(); ++i) 
       languageName.push_back(tempPathName.at(i));
 
+   std::string se2s03;
+   se2s03 = (languageName == "Haskell") ? "Se2s03" : "se2s03";
+   TesterBoilerplate* tester{new TesterBoilerplate{se2s03, className, methodName,
+      name}};
+
    std::string extension;
    if (languageName == "Java") extension = ".java";
    else if (languageName == "JavaScript") extension = ".js";
    else if (languageName == "Scheme") extension = ".scm";
+   else if (languageName == "Haskell") extension = ".hs";
 
    std::string csvFileName{className + ".csv"};
    boost::filesystem::path csvPath{studentPath / csvFileName};
@@ -670,18 +684,22 @@ void printA3Tests(Printer* myPrinter, Boilerplate* myProgram,
 {
    const unsigned NUMBER_TESTS{18};
    std::vector<std::string> params{"n"};
-   TesterBoilerplate* tester{new TesterBoilerplate{"se2s03", className, methodName,
-      name}};
 
    std::string languageName;
    std::string tempPathName{studentPath.c_str()};
    for (unsigned i=8; i<tempPathName.size(); ++i) 
       languageName.push_back(tempPathName.at(i));
 
+   std::string se2s03;
+   se2s03 = (languageName == "Haskell") ? "Se2s03" : "se2s03";
+   TesterBoilerplate* tester{new TesterBoilerplate{se2s03, className, methodName,
+      name}};
+
    std::string extension;
    if (languageName == "Java") extension = ".java";
    else if (languageName == "JavaScript") extension = ".js";
    else if (languageName == "Scheme") extension = ".scm";
+   else if (languageName == "Haskell") extension = ".hs";
 
    std::string csvFileName{className + ".csv"};
    boost::filesystem::path csvPath{studentPath / csvFileName};

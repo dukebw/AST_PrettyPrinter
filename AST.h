@@ -648,6 +648,29 @@ struct SchemePrinter : Printer {
 
 //------------------------------------------------------------------------------------
 
+struct HaskellPrinter : Printer {
+   HaskellPrinter() :Printer{"  "} {}
+
+   void visit(TesterBoilerplate* tester);
+   void visit(Boilerplate* boilerplate);
+   void visit(MethodDeclaration* methodDeclaration);
+   void visit(VarDeclStatement* varDeclStatement);
+   void visit(AssertStatement* assert);
+   void visit(Block* block);
+   void visit(ReturnStatement* returnStatement);
+   void visit(AssignmentStatement* assignmentStatement);
+   void visit(IfStatement* ifStatement);
+   void visit(ForStatement* forStatement);
+   void visit(Name* name) { *m_os << name->getName(); }
+   void visit(BooleanLiteral* booleanLiteral);
+   void visit(NumberLiteral* numberLiteral);
+   void visit(InfixExpression* infixExpression);
+   void visit(PostfixExpression* postfixExpression);
+   void visit(VarDeclFragment* varDeclFragment);
+};
+
+//------------------------------------------------------------------------------------
+
 struct ResultFinder : ASTVisitor {
    ResultFinder(const std::vector<int>& inputs, 
          const std::vector<std::string> inputNames, ASTNode* parent = nullptr)

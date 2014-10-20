@@ -6,6 +6,8 @@ JavaScript: Use rhino to run the test file (e.g. rhino A3Test.js).
 
 Scheme: Use the Gambit Scheme Interpreter to run the test file (e.g. gsi A1Test.scm).
 
+Haskell: Use the GHCi (Glasgow Haskell Compiler interpreter) and then the command "runTestTT tests"), (e.g. ghci A3Test.hs, then in the interpreter runTestTT tests).
+
 To install the Gambit Scheme Interpreter (gsi):
 
 Download the latest release from http://gambitscheme.org/wiki/index.php/Main_Page and follow the install instructiosn from the README and INSTALL.txt. 
@@ -35,3 +37,9 @@ Printing into different languages (Java, JavaScript, Haskell and Scheme) also ge
 The generator could easily be modified to print the same data set into all four programming languages by separating the tree-creation from the printA3(), printA1A2() etc. functions.
 
 Right now the assignment generator assumes that the student numbers are stored in a file called "STUDENT_NUMBERS".
+
+Note that the ResultFinder doesn't include a totally well thought-out grammar for expression evaluation and so doesn't take into account precedence (e.g. between * and +). However, it works for the two programs printed for this assignment.
+
+Also, the abstract syntax trees created here aren't quite correct. In particular, in a sequence of statements each successive statement should be the child of the previous statement. Instead, sequence of statements were stored in a vector member of a Block class. This led to the need to have a MissingBracket Printer that comes along and fixes the brackets for the Scheme programs.
+
+Pretty-printing into Haskell wasn't very general since I couldn't figure out how to elegantly convert the for-loop in A3 into a state-less function.

@@ -1,4 +1,5 @@
 #include "AST.h"
+#include <cstdlib>
 
 int main()
 try {
@@ -10,6 +11,7 @@ try {
    JavaPrinter myJavaPrinter;
    JavaScriptPrinter myJsPrinter;
    SchemePrinter myScmPrinter;
+   HaskellPrinter myHaskellPrinter;
    for (const std::string& s : studentNumbers) {
       printA1A2(&myJavaPrinter, s, "Java");
       printA3(&myJavaPrinter, s, "Java");
@@ -19,6 +21,9 @@ try {
 
       printA1A2(&myScmPrinter, s, "Scheme");
       printA3(&myScmPrinter, s, "Scheme");
+
+      printA1A2(&myHaskellPrinter, s, "Haskell");
+      printA3(&myHaskellPrinter, s, "Haskell");
    }
 }
 catch (BadArgument) {
